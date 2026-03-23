@@ -101,4 +101,74 @@ export const productsController = {
       res.status(500).json({ error: "Failed to add product" });
     }
   },
+
+  // 4️⃣ Delete a product
+  async deleteProduct(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const deletedProduct = await db
+        .delete(products)
+        .where(eq(products.id, Number(id)))
+        .returning();
+
+      if (!deletedProduct.length) {
+        return res.status(404).json({ error: "Product not found" });
+      }
+
+      res.json({ message: "Product deleted successfully", product: deletedProduct[0] });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Failed to delete product" });
+    }
+  },
+
+  // 5️⃣ Update a product
+  async updateProduct(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const {
+        sku,
+        name,
+        genericName,
+        description,
+        category,
+        form,
+        baseUnit,
+        packageUnit,
+        conversionFactor,
+        isPrescriptionRequired,
+        requiresColdChain,
+        reorderLevel,
+      } = req.body;
+
+      const updatedProduct = await db
+        .update(products)
+        .set({
+          sku,
+          name,
+          genericName,
+          description,
+          category,
+          form,
+          baseUnit,
+          packageUnit,
+          conversionFactor,
+          isPrescriptionRequired,
+          requiresColdChain,
+          reorderLevel,
+          updatedAt: new Date(), // Update the timestamp
+        })
+        .where(eq(products.id, Number(id)))
+        .returning();
+
+      if (!updatedProduct.length) {
+        return res.status(404).json({ error: "Product not found" });
+      }
+
+      res.json(updatedProduct[0]);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Failed to update product" });
+    }
+  },
 };
