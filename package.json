@@ -1,6 +1,7 @@
 {
   "name": "final-project",
   "private": true,
+  "packageManager": "npm@11.5.2",
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -11,5 +12,9 @@
   },
   "devDependencies": {
     "turbo": "^2.3.4"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.2",
+    "drizzle-orm": "^0.45.1"
   }
 }
