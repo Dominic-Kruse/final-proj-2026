@@ -8,11 +8,11 @@ export const Sidebar = () => {
       <div className="h-16 flex items-center px-6 border-b border-slate-100">
         <div className="flex items-center gap-2 text-blue-600 font-bold text-xl">
           <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white">
-            P {/* Placeholder for Logo Icon */}
+            PA {/* Placeholder for Logo Icon */}
           </div>
-          Pharmacy
+          PharmAssist
         </div>
-      </div>
+      </div>  
 
       {/* Navigation Links */}
       <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
