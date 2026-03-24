@@ -1,4 +1,5 @@
 
+import { NavLink } from "react-router-dom";
 
 export const Sidebar = () => {
   return (
@@ -15,22 +16,47 @@ export const Sidebar = () => {
 
       {/* Navigation Links */}
       <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
-        {/* Active Link Example */}
-        <a href="#" className="flex items-center gap-3 px-3 py-2.5 bg-blue-300 text-white rounded-lg font-medium">
+        <NavLink
+          to="/"
+          className={({ isActive }) =>
+            `flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors ${
+              isActive
+                ? "bg-blue-300 text-white"
+                : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+            }`
+          }
+        >
           <span className="w-5 h-5 bg-white/20 rounded-md"></span> {/* Icon Placeholder */}
           Dashboard
-        </a>
-        
-        {/* Inactive Link Example */}
-        <a href="#" className="flex items-center gap-3 px-3 py-2.5 text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-lg font-medium transition-colors">
-          <span className="w-5 h-5 bg-slate-200 rounded-md"></span> {/* Icon Placeholder */}
-          Medicine
-        </a>
-        <a href="#" className="flex items-center gap-3 px-3 py-2.5 text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-lg font-medium transition-colors">
-          <span className="w-5 h-5 bg-slate-200 rounded-md"></span> {/* Icon Placeholder */}
+        </NavLink>
+
+        <NavLink
+          to="/inventory"
+          className={({ isActive }) =>
+            `flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors ${
+              isActive
+                ? "bg-blue-300 text-white"
+                : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+            }`
+          }
+        >
+          <span className="w-5 h-5 bg-white/20 rounded-md"></span> {/* Icon Placeholder */}
+          Inventory
+        </NavLink>
+
+        <NavLink
+          to="/customer"
+          className={({ isActive }) =>
+            `flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors ${
+              isActive
+                ? "bg-blue-300 text-white"
+                : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+            }`
+          }
+        >
+          <span className="w-5 h-5 bg-white/20 rounded-md"></span> {/* Icon Placeholder */}
           Customer
-        </a>
-        {/* Add more links as needed... */}
+        </NavLink>
       </nav>
     </aside>
   );
