@@ -1,11 +1,11 @@
-
+// import React from 'react'
 
 export const Header = () => {
   return (
-    <header className="h-16 bg-white flex items-center justify-between px-8 shrink-0 z-10">
+    <header className="h-16 bg-slate-100 flex items-center justify-between px-8 shrink-0 z-10">
       {/* Search Bar */}
       <div className="w-96">
-        <div className="relative flex items-center w-full h-10 rounded-full focus-within:shadow-sm bg-slate-100 overflow-hidden">
+        <div className="relative flex items-center w-full h-10 rounded-full focus-within:shadow-sm bg-white overflow-hidden">
           <div className="grid place-items-center h-full w-12 text-slate-400">
             {/* Search Icon Placeholder */}
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
