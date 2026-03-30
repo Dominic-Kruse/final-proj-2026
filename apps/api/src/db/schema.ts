@@ -46,6 +46,7 @@ export const inventoryBatches = pgTable('inventory_batches', {
   batchNumber: varchar('batch_number', { length: 100 }).notNull(),
   supplierId: integer('supplier_id'), // Link to a suppliers table if you have one
   
+  inventoryLocation: varchar('inventory_location', {length: 100 }).notNull(),
   // Dates
   expiryDate: date('expiry_date').notNull(),
   receivedDate: date('received_date').defaultNow(),

@@ -1,0 +1,1 @@
+ALTER TABLE "inventory_batches" ADD COLUMN "inventory_location" varchar(100) NOT NULL;

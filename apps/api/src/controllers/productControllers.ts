@@ -5,7 +5,7 @@ import { Request, Response } from "express";
 
 export const productsController = {
 
-  async getProducts(req: Request, res: Response) {
+  async getProducts(_req: Request,res: Response) {
     try {
       const allProducts = await db
         .select({
