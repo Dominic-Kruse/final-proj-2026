@@ -45,6 +45,34 @@ export const Sidebar = () => {
         </NavLink>
 
         <NavLink
+          to="/stockin"
+          className={({ isActive }) =>
+            `flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors ${
+              isActive
+                ? "bg-blue-300 text-white"
+                : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+            }`
+          }
+        >
+          <span className="w-5 h-5 bg-white/20 rounded-md"></span> {/* Icon Placeholder */}
+          Stock In
+        </NavLink>
+
+        <NavLink
+          to="/dispense"
+          className={({ isActive }) =>
+            `flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors ${
+              isActive
+                ? "bg-blue-300 text-white"
+                : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+            }`
+          }
+        >
+          <span className="w-5 h-5 bg-white/20 rounded-md"></span> {/* Icon Placeholder */}
+          Dispense
+        </NavLink>
+
+        <NavLink
           to="/customer"
           className={({ isActive }) =>
             `flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-colors ${
