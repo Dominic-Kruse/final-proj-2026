@@ -14,7 +14,7 @@ import {
 // Defines what the medicine is (The "Label")
 export const products = pgTable('products', {
   id: serial('id').primaryKey(),
-  sku: varchar('sku', { length: 100 }).unique(), // Barcode
+  sku: varchar('sku', { length: 100 }), // Barcode
   name: varchar('name', { length: 255 }).notNull(), // Brand Name
   genericName: text('generic_name').notNull(),
   description: text('description'),
