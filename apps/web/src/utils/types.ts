@@ -1,6 +1,6 @@
 export interface Medicine {
     id: number; 
-    sku: string; 
+    sku?: string; 
     name: string;
     genericName: string;
     description?: string;
