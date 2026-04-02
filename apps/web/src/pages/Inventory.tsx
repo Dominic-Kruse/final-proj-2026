@@ -207,7 +207,9 @@ export function Inventory() {
         </div>
       ) : null}
 
-      <InventoryTable products={catalog} />
+      <div className="mx-auto w-full max-w-6xl">
+        <InventoryTable products={catalog} />
+      </div>
     </>
   );
 }

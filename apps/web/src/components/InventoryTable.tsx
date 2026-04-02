@@ -107,19 +107,28 @@ export function InventoryTable({
         </div>
       </div>
 
-      <div className="overflow-y-auto overflow-x-auto">
-        <table className="w-full text-sm text-left border-collapse">
-          <thead className="sticky top-0 z-20 bg-white text-slate-500 font-semibold uppercase text-[11px] tracking-wider border-b border-slate-200 shadow-sm">
-            <tr>
-              <th className="px-6 py-4">Product Details</th>
-              <th className="px-6 py-4 text-center">Dosage</th>
-              <th className="px-6 py-4">Category</th>
-              <th className="px-6 py-4 text-center">Total Stock</th>
-              <th className="px-6 py-4">Shelf</th>
-              <th className="px-6 py-4">Status</th>
-              <th className="px-6 py-4 text-right">Actions</th>
-            </tr>
-          </thead>
+<div className="overflow-y-auto overflow-x-auto">
+<table className="w-full text-sm text-left border-collapse table-fixed">
+  <colgroup>
+    <col className="w-[12%]" /> {/* Product Details */}
+    <col className="w-[23%]" /> {/* Dosage */}
+    <col className="w-[9%]" /> {/* Category */}
+    <col className="w-[23%]" /> {/* Total Stock */}
+    <col className="w-[13%]" /> {/* Shelf */}
+    <col className="w-[7%]" /> {/* Status */}
+    <col className="w-[13%]" /> {/* Actions */}
+  </colgroup>
+  <thead className="sticky top-0 z-20 bg-white text-slate-500 font-semibold uppercase text-[11px] tracking-wider border-b border-slate-200 shadow-sm">
+    <tr>
+      <th className="pl-6 pr-2 py-3">Product Details</th>
+      <th className="px-2 py-3 text-center">Dosage</th>
+      <th className="px-2 py-3">Category</th>
+      <th className="px-2 py-3 text-center">Total Stock</th>
+      <th className="px-2 py-3">Shelf</th>
+      <th className="px-2 py-3">Status</th>
+      <th className="pl-2 pr-6 py-3 text-right">Actions</th>
+    </tr>
+  </thead>
           <tbody className="divide-y divide-slate-100">
             {products.map((product) => {
               const rowKey = `${product.productDetails}-${product.dosage}`;
@@ -133,16 +142,16 @@ export function InventoryTable({
                     }`}
                     onClick={() => setExpandedProduct(isExpanded ? null : rowKey)}
                   >
-                    <td className="px-6 py-4 font-semibold text-slate-900">{product.productDetails}</td>
-                    <td className="px-6 py-4 text-slate-600 text-center">{product.dosage}</td>
-                    <td className="px-6 py-4 text-slate-600">
+                    <td className={`pl-6 pr-2 py-4 font-semibold text-slate-900 ${mode === "view" ? "truncate" : ""}`}>{product.productDetails}</td>
+                    <td className="px-2 py-4 text-slate-600 text-center whitespace-nowrap">{product.dosage}</td>
+                    <td className="px-2 py-4 text-slate-600 truncate">
                       <span className="bg-slate-100 px-2 py-1 rounded text-[11px] font-bold text-slate-500">
                         {product.category}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-slate-900 font-medium text-center">{product.totalStock}</td>
-                    <td className="px-6 py-4 text-slate-600 font-mono text-xs">{product.shelfLocation}</td>
-                    <td className="px-6 py-4">
+                    <td className="px-2 py-4 text-slate-900 font-medium text-center whitespace-nowrap">{product.totalStock}</td>
+                    <td className="px-2 py-4 text-slate-600 font-mono text-xs whitespace-nowrap">{product.shelfLocation}</td>
+                    <td className="px-2 py-4 whitespace-nowrap">
                       <span
                         className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
                           product.status === "In Stock"
@@ -155,7 +164,7 @@ export function InventoryTable({
                         {product.status}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="pl-2 pr-6 py-4 text-right whitespace-nowrap">
                       {mode === "view" ? (
                         <div className="inline-flex gap-2" onClick={(e) => e.stopPropagation()}>
                           <button className="px-2.5 py-1.5 text-xs font-medium border border-slate-200 rounded-md hover:bg-slate-50">
