@@ -17,7 +17,7 @@ export type ProductCatalogItem = {
   batches: ProductBatch[];
 };
 
-const defaultProducts: ProductCatalogItem[] = [
+export const defaultProducts: ProductCatalogItem[] = [
   {
     productDetails: "Paracetamol",
     dosage: "500 mg",
@@ -77,9 +77,15 @@ const defaultProducts: ProductCatalogItem[] = [
 
 type InventoryTableProps = {
   products?: ProductCatalogItem[];
+  mode?: "view" | "dispense";
+  onAddBatch?: (product: ProductCatalogItem, batch: ProductBatch) => void;
 };
 
-export function InventoryTable({ products = defaultProducts }: InventoryTableProps) {
+export function InventoryTable({ 
+  products = defaultProducts, 
+  mode = "view", 
+  onAddBatch 
+}: InventoryTableProps) {
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
 
   const calculateDaysLeft = (expiryDate: string) => {
@@ -90,23 +96,28 @@ export function InventoryTable({ products = defaultProducts }: InventoryTablePro
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-      <div className="p-5 border-b border-slate-200">
-        <h2 className="text-lg font-bold text-slate-800">Inventory Master</h2>
-        <p className="text-sm text-slate-500 mt-1">Click a product row to view its batch details.</p>
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full">
+      {/* Refined Header */}
+      <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+        <h2 className="text-lg font-bold text-slate-800 tracking-tight">
+          {mode === "dispense" ? "Select Medicine" : "Inventory Master"}
+        </h2>
+        <div className="text-xs font-medium px-2 py-1 bg-slate-200 text-slate-600 rounded-md">
+          {products.length} Products
+        </div>
       </div>
 
-      <div className="max-h-105 overflow-y-auto">
-        <table className="w-full text-sm text-left">
-          <thead className="sticky top-0 z-10 bg-slate-50 text-slate-600 font-medium border-b border-slate-200">
+      <div className="overflow-y-auto overflow-x-auto">
+        <table className="w-full text-sm text-left border-collapse">
+          <thead className="sticky top-0 z-20 bg-white text-slate-500 font-semibold uppercase text-[11px] tracking-wider border-b border-slate-200 shadow-sm">
             <tr>
-              <th className="px-6 py-3">Product Details</th>
-              <th className="px-6 py-3">Dosage</th>
-              <th className="px-6 py-3">Category</th>
-              <th className="px-6 py-3">Total Stock</th>
-              <th className="px-6 py-3">Shelf/Location</th>
-              <th className="px-6 py-3">Status</th>
-              <th className="px-6 py-3 text-right">Actions</th>
+              <th className="px-6 py-4">Product Details</th>
+              <th className="px-6 py-4 text-center">Dosage</th>
+              <th className="px-6 py-4">Category</th>
+              <th className="px-6 py-4 text-center">Total Stock</th>
+              <th className="px-6 py-4">Shelf</th>
+              <th className="px-6 py-4">Status</th>
+              <th className="px-6 py-4 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -117,92 +128,111 @@ export function InventoryTable({ products = defaultProducts }: InventoryTablePro
               return (
                 <Fragment key={rowKey}>
                   <tr
-                    className="hover:bg-slate-50 transition-colors cursor-pointer"
-                    onClick={() => setExpandedProduct((current) => (current === rowKey ? null : rowKey))}
+                    className={`hover:bg-blue-50/30 transition-all cursor-pointer ${
+                      isExpanded ? "bg-blue-50/50" : ""
+                    }`}
+                    onClick={() => setExpandedProduct(isExpanded ? null : rowKey)}
                   >
-                    <td className="px-6 py-4 font-medium text-slate-800">{product.productDetails}</td>
-                    <td className="px-6 py-4 text-slate-600">{product.dosage}</td>
-                    <td className="px-6 py-4 text-slate-600">{product.category}</td>
-                    <td className="px-6 py-4 text-slate-700">{product.totalStock}</td>
-                    <td className="px-6 py-4 text-slate-600">{product.shelfLocation}</td>
+                    <td className="px-6 py-4 font-semibold text-slate-900">{product.productDetails}</td>
+                    <td className="px-6 py-4 text-slate-600 text-center">{product.dosage}</td>
+                    <td className="px-6 py-4 text-slate-600">
+                      <span className="bg-slate-100 px-2 py-1 rounded text-[11px] font-bold text-slate-500">
+                        {product.category}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-slate-900 font-medium text-center">{product.totalStock}</td>
+                    <td className="px-6 py-4 text-slate-600 font-mono text-xs">{product.shelfLocation}</td>
                     <td className="px-6 py-4">
                       <span
-                        className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${
+                        className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
                           product.status === "In Stock"
                             ? "bg-emerald-100 text-emerald-700"
                             : product.status === "Low Stock"
-                              ? "bg-amber-100 text-amber-700"
-                              : "bg-red-100 text-red-700"
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-red-100 text-red-700"
                         }`}
                       >
                         {product.status}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <div className="inline-flex gap-2">
-                        <button
-                          onClick={(event) => event.stopPropagation()}
-                          className="px-2.5 py-1.5 text-xs font-medium border border-slate-200 rounded-md hover:bg-slate-50 transition-colors"
-                        >
-                          View
-                        </button>
-                        <button
-                          onClick={(event) => event.stopPropagation()}
-                          className="px-2.5 py-1.5 text-xs font-medium bg-blue-600 text-black rounded-md hover:bg-blue-700 transition-colors"
-                        >
-                          Edit
-                        </button>
-                      </div>
+                      {mode === "view" ? (
+                        <div className="inline-flex gap-2" onClick={(e) => e.stopPropagation()}>
+                          <button className="px-2.5 py-1.5 text-xs font-medium border border-slate-200 rounded-md hover:bg-slate-50">
+                            Edit
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="text-slate-400">
+                          <svg 
+                            className={`w-5 h-5 transition-transform inline-block ${isExpanded ? "rotate-180" : ""}`} 
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+                      )}
                     </td>
                   </tr>
 
-                  {isExpanded ? (
-                    <tr className="bg-slate-50/80">
-                      <td colSpan={7} className="px-6 py-4">
-                        {product.batches.length === 0 ? (
-                          <p className="text-sm text-slate-500">No batches available for this product.</p>
-                        ) : (
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-xs text-left border border-slate-200 rounded-lg overflow-hidden">
-                              <thead className="bg-white text-slate-600 border-b border-slate-200">
-                                <tr>
-                                  <th className="px-3 py-2">Batch Number</th>
-                                  <th className="px-3 py-2">Expiry Date</th>
-                                  <th className="px-3 py-2">Quantity</th>
-                                  <th className="px-3 py-2">Days Left</th>
-                                  <th className="px-3 py-2">Supplier</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100 bg-white">
-                                {product.batches.map((batch) => {
+                  {isExpanded && (
+                    <tr className="bg-slate-50/50">
+                      <td colSpan={7} className="px-8 py-4">
+                        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                          <table className="w-full text-[12px] text-left">
+                            <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200">
+                              <tr>
+                                <th className="px-4 py-2">Batch Number</th>
+                                <th className="px-4 py-2">Expiry Date</th>
+                                <th className="px-4 py-2 text-center">Quantity</th>
+                                <th className="px-4 py-2 text-center">Days Left</th>
+                                {mode === "dispense" && <th className="px-4 py-2 text-right">Selection</th>}
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {product.batches.length > 0 ? (
+                                product.batches.map((batch) => {
                                   const daysLeft = calculateDaysLeft(batch.expiryDate);
                                   return (
-                                    <tr key={batch.batchNumber}>
-                                      <td className="px-3 py-2 font-medium text-slate-700">{batch.batchNumber}</td>
-                                      <td className="px-3 py-2 text-slate-600">{batch.expiryDate}</td>
-                                      <td className="px-3 py-2 text-slate-600">{batch.quantity}</td>
-                                      <td className={`px-3 py-2 font-medium ${daysLeft <= 90 ? "text-amber-700" : "text-slate-600"}`}>
-                                        {daysLeft}
+                                    <tr key={batch.batchNumber} className="hover:bg-slate-50 transition-colors">
+                                      <td className="px-4 py-2 font-mono font-medium text-slate-700">{batch.batchNumber}</td>
+                                      <td className="px-4 py-2 text-slate-600">{batch.expiryDate}</td>
+                                      <td className="px-4 py-2 text-center font-semibold text-slate-800">{batch.quantity}</td>
+                                      <td className={`px-4 py-2 text-center font-bold ${daysLeft <= 90 ? "text-red-500" : "text-emerald-600"}`}>
+                                        {daysLeft}d
                                       </td>
-                                      <td className="px-3 py-2 text-slate-600">{batch.supplier}</td>
+                                      {mode === "dispense" && (
+                                        <td className="px-4 py-2 text-right">
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              onAddBatch?.(product, batch);
+                                            }}
+                                            className="bg-blue-600  px-3 py-1 rounded-lg text-[11px] font-bold hover:bg-blue-700 shadow-sm active:scale-95 transition-all"
+                                          >
+                                            ADD
+                                          </button>
+                                        </td>
+                                      )}
                                     </tr>
                                   );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        )}
+                                })
+                              ) : (
+                                <tr>
+                                  <td colSpan={mode === "dispense" ? 5 : 4} className="px-4 py-4 text-center text-slate-400 italic">
+                                    No available batches.
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
                       </td>
                     </tr>
-                  ) : null}
+                  )}
                 </Fragment>
               );
             })}
-            {products.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-6 py-6 text-slate-500">No products yet. Add your first product to start the catalog.</td>
-              </tr>
-            ) : null}
           </tbody>
         </table>
       </div>
