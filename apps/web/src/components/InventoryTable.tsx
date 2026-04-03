@@ -144,7 +144,7 @@ export function InventoryTable({
                   >
                     <td className={`pl-6 pr-2 py-4 font-semibold text-slate-900 ${mode === "view" ? "truncate" : ""}`}>{product.productDetails}</td>
                     <td className="px-2 py-4 text-slate-600 text-center whitespace-nowrap">{product.dosage}</td>
-                    <td className="px-2 py-4 text-slate-600 truncate">
+                    <td className="px-2 py-4 text-slate-600">
                       <span className="bg-slate-100 px-2 py-1 rounded text-[11px] font-bold text-slate-500">
                         {product.category}
                       </span>
