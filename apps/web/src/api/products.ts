@@ -4,7 +4,7 @@ import type { Medicine } from "../utils/types";
 export const productsApi = {
     getAll: async (): Promise<Medicine[]> => {
         const res = await apiClient.get("/products");
-        return res.data;
+        return Array.isArray(res.data) ? res.data : res.data.data;
     },
 
     getById: async (id: number): Promise<Medicine> => {

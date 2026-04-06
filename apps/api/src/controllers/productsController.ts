@@ -1,6 +1,6 @@
 import { db } from "../db";
 import { products } from "../db/schema";
-import { eq } from "drizzle-orm";
+import { eq, ilike, or, sql } from "drizzle-orm";
 import { Request, Response } from "express";
 
 // ── Shared error helper ────────────────────────────────────────────────────────
@@ -11,8 +11,33 @@ function handleError(res: Response, error: unknown, message: string) {
 
 export const productsController = {
 
-  async getProducts(_req: Request, res: Response) {
+  async getProducts(req: Request, res: Response) {
     try {
+      const pageQuery = Number(req.query.page ?? 1);
+      const limitQuery = Number(req.query.limit ?? 20);
+      const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+
+      const page = Number.isFinite(pageQuery) && pageQuery > 0 ? Math.floor(pageQuery) : 1;
+      const limit = Number.isFinite(limitQuery) && limitQuery > 0
+        ? Math.min(Math.floor(limitQuery), 100)
+        : 20;
+
+      const whereClause = search
+        ? or(
+          ilike(products.name, `%${search}%`),
+          ilike(products.genericName, `%${search}%`),
+        )
+        : undefined;
+
+      const [{ totalCount }] = await db
+        .select({ totalCount: sql<number>`count(*)::int` })
+        .from(products)
+        .where(whereClause);
+
+      const totalPages = totalCount === 0 ? 0 : Math.ceil(totalCount / limit);
+      const currentPage = totalPages === 0 ? 1 : Math.min(page, totalPages);
+      const offset = (currentPage - 1) * limit;
+
       const rows = await db
         .select({
           id: products.id,
@@ -30,9 +55,21 @@ export const productsController = {
           reorderLevel: products.reorderLevel,
           updatedAt: products.updatedAt,
         })
-        .from(products);
+        .from(products)
+        .where(whereClause)
+        .orderBy(products.name)
+        .limit(limit)
+        .offset(offset);
 
-      res.json(rows);
+      res.status(200).json({
+        metadata: {
+          currentPage,
+          totalPages,
+          totalCount,
+          limit,
+        },
+        data: rows,
+      });
     } catch (error) {
       handleError(res, error, "Failed to fetch products");
     }
