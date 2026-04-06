@@ -5,10 +5,11 @@ export type DispenseReason = "Sale" | "Expired" | "Damaged" | "Sample";
 
 export interface DispenseItem {
   productId: number;
+  batchId: number;       
   name: string;
   batchNumber: string;
   quantity: number;
-  maxQuantity: number; // Maps to batch.currentQuantity
+  maxQuantity: number;
   reason: DispenseReason;
 }
 

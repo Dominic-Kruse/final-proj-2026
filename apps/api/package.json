@@ -16,7 +16,8 @@
     "@repo/db": "*",
     "cors": "^2.8.5",
     "dotenv": "^17.3.1",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "ws": "^8.20.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
@@ -24,6 +25,7 @@
     "@types/jest": "^30.0.0",
     "@types/node": "^25.4.0",
     "@types/supertest": "^7.2.0",
+    "@types/ws": "^8.18.1",
     "drizzle-kit": "^0.31.10",
     "jest": "^30.3.0",
     "supertest": "^7.2.2",

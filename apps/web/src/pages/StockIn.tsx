@@ -1,8 +1,11 @@
 import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { SearchBar } from "../components/SearchBar";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { productsApi } from "../api/products";
+import { inventoryApi } from "../api/inventory";
 
 type StockInBatchDraft = {
+    productId: number;
     productName: string;
     productDosage: string;
     batchNumber: string;
@@ -12,15 +15,28 @@ type StockInBatchDraft = {
     sellingPrice: number;
 };
 
-type ProductCatalog = {
-    name: string;
-    dosage: string;
-};
-
 const defaultDateReceived = new Date().toISOString().slice(0, 10);
 
 export function StockIn() {
-    const [productCatalog, setProductCatalog] = useState<ProductCatalog[]>([]);
+    const queryClient = useQueryClient();
+
+    // ── Remote state ───────────────────────────────────────────────────────────
+    const { data: productCatalog = [] } = useQuery({
+        queryKey: ["products"],
+        queryFn: productsApi.getAll,
+    });
+
+    const addProductMutation = useMutation({
+        mutationFn: productsApi.create,
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ["products"] }),
+    });
+
+    const stockInwardMutation = useMutation({
+        mutationFn: inventoryApi.stockInward,
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ["inventory"] }),
+    });
+
+    // ── Local form state ───────────────────────────────────────────────────────
     const [supplier, setSupplier] = useState("");
     const [referenceNumber, setReferenceNumber] = useState("");
     const [dateReceived, setDateReceived] = useState(defaultDateReceived);
@@ -34,19 +50,11 @@ export function StockIn() {
     const [draftBatches, setDraftBatches] = useState<StockInBatchDraft[]>([]);
     const [errorMessage, setErrorMessage] = useState("");
     const [saveMessage, setSaveMessage] = useState("");
-    const [searchQuery, setSearchQuery] = useState("");
     const [showAddProduct, setShowAddProduct] = useState(false);
-    const [pendingBatchData, setPendingBatchData] = useState<{
-        productName: string;
-        productDosage: string;
-        batchNumber: string;
-        expiryDate: string;
-        quantity: number;
-        unitCost: number;
-        sellingPrice: number;
-    } | null>(null);
-  const [addProductMessage, setAddProductMessage] = useState("");
+    const [pendingBatchData, setPendingBatchData] = useState<Omit<StockInBatchDraft, "productId"> | null>(null);
+    const [addProductMessage, setAddProductMessage] = useState("");
 
+    // ── Derived ────────────────────────────────────────────────────────────────
     const summary = useMemo(() => {
         const totalUnits = draftBatches.reduce((sum, item) => sum + item.quantity, 0);
         const totalCost = draftBatches.reduce((sum, item) => sum + item.quantity * item.unitCost, 0);
@@ -54,22 +62,9 @@ export function StockIn() {
         return { totalUnits, totalCost, totalRetail };
     }, [draftBatches]);
 
-    const filteredDraftBatches = useMemo(() => {
-        const query = searchQuery.trim().toLowerCase();
+    const filteredDraftBatches = draftBatches;
 
-        if (!query) {
-            return draftBatches;
-        }
-
-        return draftBatches.filter((item) => {
-            const searchableText = [item.productName, item.productDosage, item.batchNumber, item.expiryDate]
-                .join(" ")
-                .toLowerCase();
-
-            return searchableText.includes(query);
-        });
-    }, [draftBatches, searchQuery]);
-
+    // ── Helpers ────────────────────────────────────────────────────────────────
     const resetBatchInputs = () => {
         setProductName("");
         setProductDosage("");
@@ -80,6 +75,7 @@ export function StockIn() {
         setSellingPrice("");
     };
 
+    // ── Handlers ───────────────────────────────────────────────────────────────
     const handleAddBatch = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         setSaveMessage("");
@@ -111,11 +107,14 @@ export function StockIn() {
             return;
         }
 
-        const productExists = productCatalog.some(
-            (p) => p.name.toLowerCase() === trimmedProductName.toLowerCase() && p.dosage.toLowerCase() === trimmedProductDosage.toLowerCase()
+        // Check against real product catalog from backend
+        const matchedProduct = productCatalog.find(
+            (p) =>
+                p.name.toLowerCase() === trimmedProductName.toLowerCase() &&
+                p.genericName.toLowerCase() === trimmedProductDosage.toLowerCase()
         );
 
-        if (!productExists) {
+        if (!matchedProduct) {
             setErrorMessage("");
             setPendingBatchData({
                 productName: trimmedProductName,
@@ -138,6 +137,7 @@ export function StockIn() {
         setDraftBatches((current) => [
             ...current,
             {
+                productId: matchedProduct.id,
                 productName: trimmedProductName,
                 productDosage: trimmedProductDosage,
                 batchNumber: trimmedBatchNumber,
@@ -155,7 +155,7 @@ export function StockIn() {
         setDraftBatches((current) => current.filter((item) => item.batchNumber !== batchNumberToRemove));
     };
 
-    const handleSaveInward = () => {
+    const handleSaveInward = async () => {
         if (!supplier.trim() || !referenceNumber.trim() || !dateReceived) {
             setErrorMessage("Please fill in the stock inward header before saving.");
             return;
@@ -167,37 +167,60 @@ export function StockIn() {
         }
 
         setErrorMessage("");
-        setSaveMessage(`Saved ${draftBatches.length} batches from ${supplier.trim()} (ref: ${referenceNumber.trim()}).`);
 
-        setDraftBatches([]);
-        resetBatchInputs();
+        try {
+            await stockInwardMutation.mutateAsync({
+                supplierName: supplier.trim(),
+                referenceNumber: referenceNumber.trim(),
+                dateReceived,
+                batches: draftBatches.map((b) => ({
+                    productId: b.productId,
+                    batchNumber: b.batchNumber,
+                    expiryDate: b.expiryDate,
+                    quantity: b.quantity,
+                    unitCost: b.unitCost,
+                    sellingPrice: b.sellingPrice,
+                })),
+            });
+
+            setSaveMessage(`Saved ${draftBatches.length} batch(es) from ${supplier.trim()} (ref: ${referenceNumber.trim()}).`);
+            setDraftBatches([]);
+            resetBatchInputs();
+        } catch {
+            setErrorMessage("Failed to save stock inward. Please try again.");
+        }
     };
 
-    const handleAddProduct = (event: FormEvent<HTMLFormElement>) => {
+    const handleAddProduct = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        if (!pendingBatchData) {
-            setAddProductMessage("Error: No batch data. Please enter batch details first.");
-            return;
+        if (!pendingBatchData) return;
+
+        try {
+            const newProduct = await addProductMutation.mutateAsync({
+                name: pendingBatchData.productName,
+                genericName: pendingBatchData.productDosage,
+                baseUnit: "Tablet",
+                conversionFactor: 1,
+                isPrescriptionRequired: false,
+                requiresColdChain: false,
+                reorderLevel: 10,
+            });
+
+            setAddProductMessage(`Product "${newProduct.name}" added successfully.`);
+
+            setTimeout(() => {
+                setDraftBatches((current) => [
+                    ...current,
+                    { ...pendingBatchData, productId: newProduct.id },
+                ]);
+                setPendingBatchData(null);
+                resetBatchInputs();
+                setShowAddProduct(false);
+                setAddProductMessage("");
+            }, 1000);
+        } catch {
+            setAddProductMessage("Failed to add product. Please try again.");
         }
-
-        if (!pendingBatchData.productName || !pendingBatchData.productDosage) {
-            setAddProductMessage("Please enter both product name and dosage.");
-            return;
-        }
-
-        setProductCatalog((current) => [
-            ...current,
-            { name: pendingBatchData.productName, dosage: pendingBatchData.productDosage },
-        ]);
-        setAddProductMessage(`Product "${pendingBatchData.productName}" (${pendingBatchData.productDosage}) added successfully.`);
-
-        setTimeout(() => {
-            setDraftBatches((current) => [...current, pendingBatchData]);
-            setPendingBatchData(null);
-            resetBatchInputs();
-            setShowAddProduct(false);
-            setAddProductMessage("");
-        }, 1000);
     };
 
     return (
@@ -207,97 +230,72 @@ export function StockIn() {
                 <p className="text-sm text-slate-500">Capture supplier receipts and incoming batches</p>
             </div>
 
-            <SearchBar placeholder="Search products..." onSearch={setSearchQuery} />
+            {/* <SearchBar placeholder="Search products..." onSearch={setSearchQuery} /> */}
 
             {showAddProduct ? (
                 <aside className="fixed right-0 top-0 z-40 h-full w-full max-w-xl overflow-y-auto border-l border-slate-200 bg-white shadow-2xl transition-transform duration-300 ease-out">
-                        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
-                            <div>
-                                <h3 className="text-lg font-semibold text-slate-800">Add New Product</h3>
-                                <p className="text-sm text-slate-500">Create the medicine record before saving the batch.</p>
-                            </div>
+                    <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
+                        <div>
+                            <h3 className="text-lg font-semibold text-slate-800">Add New Product</h3>
+                            <p className="text-sm text-slate-500">Create the medicine record before saving the batch.</p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => { setShowAddProduct(false); setPendingBatchData(null); setAddProductMessage(""); }}
+                            className="rounded-full border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                        >
+                            Close
+                        </button>
+                    </div>
+
+                    <form onSubmit={handleAddProduct} className="space-y-5 px-6 py-5">
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                            <p className="font-medium text-slate-700">Pending batch</p>
+                            <p>{pendingBatchData?.batchNumber ?? "No batch number yet"}</p>
+                            <p>{pendingBatchData ? `${pendingBatchData.quantity} units` : ""}</p>
+                        </div>
+
+                        <div>
+                            <label htmlFor="product-name" className="mb-1 block text-sm font-medium text-slate-700">Product Name</label>
+                            <input
+                                id="product-name"
+                                value={pendingBatchData?.productName || ""}
+                                onChange={(e) => pendingBatchData && setPendingBatchData({ ...pendingBatchData, productName: e.target.value })}
+                                placeholder="e.g. Azithromycin"
+                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                            />
+                        </div>
+
+                        <div>
+                            <label htmlFor="product-dosage" className="mb-1 block text-sm font-medium text-slate-700">Dosage</label>
+                            <input
+                                id="product-dosage"
+                                value={pendingBatchData?.productDosage || ""}
+                                onChange={(e) => pendingBatchData && setPendingBatchData({ ...pendingBatchData, productDosage: e.target.value })}
+                                placeholder="e.g. 500 mg"
+                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                            />
+                        </div>
+
+                        <div className="flex gap-2">
+                            <button
+                                type="submit"
+                                disabled={addProductMutation.isPending}
+                                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+                            >
+                                {addProductMutation.isPending ? "Adding..." : "Add New Product"}
+                            </button>
                             <button
                                 type="button"
-                                onClick={() => {
-                                    setShowAddProduct(false);
-                                    setPendingBatchData(null);
-                                    setAddProductMessage("");
-                                }}
-                                className="rounded-full border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                                onClick={() => { setShowAddProduct(false); setPendingBatchData(null); setAddProductMessage(""); }}
+                                className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
                             >
-                                Close
+                                Cancel
                             </button>
                         </div>
 
-                        <form onSubmit={handleAddProduct} className="space-y-5 px-6 py-5">
-                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                                <p className="font-medium text-slate-700">Pending batch</p>
-                                <p>{pendingBatchData?.batchNumber ?? "No batch number yet"}</p>
-                                <p>{pendingBatchData ? `${pendingBatchData.quantity} units` : ""}</p>
-                            </div>
-
-                            <div>
-                                <label htmlFor="product-name" className="mb-1 block text-sm font-medium text-slate-700">
-                                    Product Name
-                                </label>
-                                <input
-                                    id="product-name"
-                                    value={pendingBatchData?.productName || ""}
-                                    onChange={(event) => {
-                                        if (pendingBatchData) {
-                                            setPendingBatchData({
-                                                ...pendingBatchData,
-                                                productName: event.target.value,
-                                            });
-                                        }
-                                    }}
-                                    placeholder="e.g. Azithromycin"
-                                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                                />
-                            </div>
-
-                            <div>
-                                <label htmlFor="product-dosage" className="mb-1 block text-sm font-medium text-slate-700">
-                                    Dosage
-                                </label>
-                                <input
-                                    id="product-dosage"
-                                    value={pendingBatchData?.productDosage || ""}
-                                    onChange={(event) => {
-                                        if (pendingBatchData) {
-                                            setPendingBatchData({
-                                                ...pendingBatchData,
-                                                productDosage: event.target.value,
-                                            });
-                                        }
-                                    }}
-                                    placeholder="e.g. 500 mg"
-                                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                                />
-                            </div>
-
-                            <div className="flex gap-2">
-                                <button
-                                    type="submit"
-                                    className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
-                                >
-                                    Add New Product
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setShowAddProduct(false);
-                                        setPendingBatchData(null);
-                                        setAddProductMessage("");
-                                    }}
-                                    className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
-                                >
-                                    Cancel
-                                </button>
-                            </div>
-
-                            {addProductMessage ? <p className="text-sm text-emerald-700">{addProductMessage}</p> : null}
-                        </form>
+                        {addProductMessage ? <p className="text-sm text-emerald-700">{addProductMessage}</p> : null}
+                    </form>
                 </aside>
             ) : null}
 
@@ -305,55 +303,32 @@ export function StockIn() {
                 <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-600">Inward Header</h2>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                     <div>
-                        <label htmlFor="supplier" className="mb-1 block text-sm font-medium text-slate-700">
-                            Supplier
-                        </label>
+                        <label htmlFor="supplier" className="mb-1 block text-sm font-medium text-slate-700">Supplier</label>
                         <input
                             id="supplier"
                             value={supplier}
-                            onChange={(event) => {
-                                setSupplier(event.target.value);
-                                if (errorMessage) {
-                                    setErrorMessage("");
-                                }
-                            }}
+                            onChange={(e) => { setSupplier(e.target.value); if (errorMessage) setErrorMessage(""); }}
                             placeholder="e.g. MediCore Pharma"
                             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
                         />
                     </div>
-
                     <div>
-                        <label htmlFor="reference" className="mb-1 block text-sm font-medium text-slate-700">
-                            Invoice / Reference Number
-                        </label>
+                        <label htmlFor="reference" className="mb-1 block text-sm font-medium text-slate-700">Invoice / Reference Number</label>
                         <input
                             id="reference"
                             value={referenceNumber}
-                            onChange={(event) => {
-                                setReferenceNumber(event.target.value);
-                                if (errorMessage) {
-                                    setErrorMessage("");
-                                }
-                            }}
+                            onChange={(e) => { setReferenceNumber(e.target.value); if (errorMessage) setErrorMessage(""); }}
                             placeholder="e.g. INV-2026-118"
                             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
                         />
                     </div>
-
                     <div>
-                        <label htmlFor="date-received" className="mb-1 block text-sm font-medium text-slate-700">
-                            Date Received
-                        </label>
+                        <label htmlFor="date-received" className="mb-1 block text-sm font-medium text-slate-700">Date Received</label>
                         <input
                             id="date-received"
                             type="date"
                             value={dateReceived}
-                            onChange={(event) => {
-                                setDateReceived(event.target.value);
-                                if (errorMessage) {
-                                    setErrorMessage("");
-                                }
-                            }}
+                            onChange={(e) => { setDateReceived(e.target.value); if (errorMessage) setErrorMessage(""); }}
                             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
                         />
                     </div>
@@ -364,109 +339,35 @@ export function StockIn() {
                 <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-600">Batch Entry</h2>
                 <form onSubmit={handleAddBatch} className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div>
-                        <label htmlFor="product-name-input" className="mb-1 block text-sm font-medium text-slate-700">
-                            Product Name
-                        </label>
-                        <input
-                            id="product-name-input"
-                            value={productName}
-                            onChange={(event) => setProductName(event.target.value)}
-                            placeholder="e.g. Azithromycin"
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                        />
+                        <label htmlFor="product-name-input" className="mb-1 block text-sm font-medium text-slate-700">Product Name</label>
+                        <input id="product-name-input" value={productName} onChange={(e) => setProductName(e.target.value)} placeholder="e.g. Azithromycin" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100" />
                     </div>
-
                     <div>
-                        <label htmlFor="product-dosage-input" className="mb-1 block text-sm font-medium text-slate-700">
-                            Dosage
-                        </label>
-                        <input
-                            id="product-dosage-input"
-                            value={productDosage}
-                            onChange={(event) => setProductDosage(event.target.value)}
-                            placeholder="e.g. 500 mg"
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                        />
+                        <label htmlFor="product-dosage-input" className="mb-1 block text-sm font-medium text-slate-700">Dosage / Generic Name</label>
+                        <input id="product-dosage-input" value={productDosage} onChange={(e) => setProductDosage(e.target.value)} placeholder="e.g. 500 mg" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100" />
                     </div>
-
                     <div>
-                        <label htmlFor="batch-number" className="mb-1 block text-sm font-medium text-slate-700">
-                            Batch Number
-                        </label>
-                        <input
-                            id="batch-number"
-                            value={batchNumber}
-                            onChange={(event) => setBatchNumber(event.target.value)}
-                            placeholder="e.g. AMX-2026-04"
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                        />
+                        <label htmlFor="batch-number" className="mb-1 block text-sm font-medium text-slate-700">Batch Number</label>
+                        <input id="batch-number" value={batchNumber} onChange={(e) => setBatchNumber(e.target.value)} placeholder="e.g. AMX-2026-04" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100" />
                     </div>
-
                     <div>
-                        <label htmlFor="expiry-date" className="mb-1 block text-sm font-medium text-slate-700">
-                            Expiry Date
-                        </label>
-                        <input
-                            id="expiry-date"
-                            type="date"
-                            value={expiryDate}
-                            onChange={(event) => setExpiryDate(event.target.value)}
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                        />
+                        <label htmlFor="expiry-date" className="mb-1 block text-sm font-medium text-slate-700">Expiry Date</label>
+                        <input id="expiry-date" type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100" />
                     </div>
-
                     <div>
-                        <label htmlFor="quantity" className="mb-1 block text-sm font-medium text-slate-700">
-                            Quantity
-                        </label>
-                        <input
-                            id="quantity"
-                            type="number"
-                            min="1"
-                            value={quantity}
-                            onChange={(event) => setQuantity(event.target.value)}
-                            placeholder="0"
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                        />
+                        <label htmlFor="quantity" className="mb-1 block text-sm font-medium text-slate-700">Quantity</label>
+                        <input id="quantity" type="number" min="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} placeholder="0" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100" />
                     </div>
-
                     <div>
-                        <label htmlFor="unit-cost" className="mb-1 block text-sm font-medium text-slate-700">
-                            Unit Cost
-                        </label>
-                        <input
-                            id="unit-cost"
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={unitCost}
-                            onChange={(event) => setUnitCost(event.target.value)}
-                            placeholder="0.00"
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                        />
+                        <label htmlFor="unit-cost" className="mb-1 block text-sm font-medium text-slate-700">Unit Cost</label>
+                        <input id="unit-cost" type="number" min="0" step="0.01" value={unitCost} onChange={(e) => setUnitCost(e.target.value)} placeholder="0.00" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100" />
                     </div>
-
                     <div>
-                        <label htmlFor="selling-price" className="mb-1 block text-sm font-medium text-slate-700">
-                            Selling Price
-                        </label>
-                        <input
-                            id="selling-price"
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={sellingPrice}
-                            onChange={(event) => setSellingPrice(event.target.value)}
-                            placeholder="0.00"
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                        />
+                        <label htmlFor="selling-price" className="mb-1 block text-sm font-medium text-slate-700">Selling Price</label>
+                        <input id="selling-price" type="number" min="0" step="0.01" value={sellingPrice} onChange={(e) => setSellingPrice(e.target.value)} placeholder="0.00" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100" />
                     </div>
-
                     <div className="md:col-span-2 flex justify-end">
-                        <button
-                            type="submit"
-                            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
-                        >
+                        <button type="submit" className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700">
                             Add To Draft List
                         </button>
                     </div>
@@ -549,11 +450,7 @@ export function StockIn() {
                 <div className="mt-4 flex flex-wrap justify-end gap-2">
                     <button
                         type="button"
-                        onClick={() => {
-                            setDraftBatches([]);
-                            setErrorMessage("");
-                            setSaveMessage("");
-                        }}
+                        onClick={() => { setDraftBatches([]); setErrorMessage(""); setSaveMessage(""); }}
                         className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                     >
                         Clear Draft
@@ -561,9 +458,10 @@ export function StockIn() {
                     <button
                         type="button"
                         onClick={handleSaveInward}
-                        className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                        disabled={stockInwardMutation.isPending}
+                        className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
                     >
-                        Save Stock Inward
+                        {stockInwardMutation.isPending ? "Saving..." : "Save Stock Inward"}
                     </button>
                 </div>
             </section>

@@ -50,7 +50,8 @@ export const inventoryBatches = pgTable('inventory_batches', {
   // Dates
   expiryDate: date('expiry_date').notNull(),
   receivedDate: date('received_date').defaultNow(),
-  
+  supplierName: varchar('supplier_name', { length: 255 }),
+  referenceNumber: varchar('reference_number', { length: 100 }),
   // Quantities (Always track in BASE UNITS, i.e., pieces/tablets)
   initialQuantity: integer('initial_quantity').notNull(),
   currentQuantity: integer('current_quantity').notNull(),

@@ -20,6 +20,7 @@ export interface Batch {
     productId: number; 
     batchNumber: string;
     supplierId?: number;
+    supplierName?: string;
     inventoryLocation: string;
     expiryDate: string; 
     receivedDate: string;
@@ -38,3 +39,4 @@ export interface MedicineWithStock extends Medicine {
     batches: Batch[];
     totalStock: number; // Sum of all currentQuantity in batches
 }
+
