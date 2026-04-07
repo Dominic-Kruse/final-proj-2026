@@ -1,10 +1,61 @@
 import {apiClient} from "../lib/apiClient";
 import type { Medicine } from "../utils/types";
 
+type ProductsQueryParams = {
+    page?: number;
+    limit?: number;
+    search?: string;
+};
+
+type ProductsResponse = {
+    metadata: {
+        currentPage: number;
+        totalPages: number;
+        totalCount: number;
+        limit: number;
+    };
+    data: Medicine[];
+};
+
+async function getProductsPage(params: ProductsQueryParams = {}): Promise<ProductsResponse> {
+    const res = await apiClient.get("/products", { params });
+
+    if (Array.isArray(res.data)) {
+        return {
+            metadata: {
+                currentPage: 1,
+                totalPages: 1,
+                totalCount: res.data.length,
+                limit: res.data.length,
+            },
+            data: res.data,
+        };
+    }
+
+    return res.data;
+}
+
+async function getAllProducts(search?: string): Promise<Medicine[]> {
+    const pageSize = 100;
+    let page = 1;
+    let totalPages = 1;
+    const allProducts: Medicine[] = [];
+
+    do {
+        const response = await getProductsPage({ page, limit: pageSize, search });
+        allProducts.push(...response.data);
+        totalPages = response.metadata.totalPages || 1;
+        page += 1;
+    } while (page <= totalPages);
+
+    return allProducts;
+}
+
 export const productsApi = {
-    getAll: async (): Promise<Medicine[]> => {
-        const res = await apiClient.get("/products");
-        return Array.isArray(res.data) ? res.data : res.data.data;
+    getPage: getProductsPage,
+
+    getAll: async (search?: string): Promise<Medicine[]> => {
+        return getAllProducts(search);
     },
 
     getById: async (id: number): Promise<Medicine> => {

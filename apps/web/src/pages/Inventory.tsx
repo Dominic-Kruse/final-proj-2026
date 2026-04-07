@@ -13,6 +13,7 @@ import { SearchBar } from "../components/SearchBar";
 
 export function Inventory() {
     const queryClient = useQueryClient();
+    const pageSize = 20;
 
     const { data: rawInventory = [], isLoading, isError } = useQuery({
     queryKey: ["inventory"],
@@ -34,6 +35,7 @@ export function Inventory() {
     const [newBaseUnit, setNewBaseUnit] = useState("Tablet");
     const [errorMessage, setErrorMessage] = useState("");
     const [searchQuery, setSearchQuery] = useState("");
+    const [currentPage, setCurrentPage] = useState(1);
 
     const filteredCatalog = useMemo(() => {
         const q = searchQuery.trim().toLowerCase();
@@ -44,6 +46,14 @@ export function Inventory() {
             p.batches.some(b => b.batchNumber.toLowerCase().includes(q))
         );
     }, [catalog, searchQuery]);
+
+    const totalPages = Math.max(1, Math.ceil(filteredCatalog.length / pageSize));
+    const safeCurrentPage = Math.min(currentPage, totalPages);
+
+    const paginatedCatalog = useMemo(() => {
+        const startIndex = (safeCurrentPage - 1) * pageSize;
+        return filteredCatalog.slice(startIndex, startIndex + pageSize);
+    }, [filteredCatalog, safeCurrentPage]);
 
 
     const normalizedCatalog = useMemo(
@@ -119,7 +129,10 @@ export function Inventory() {
             <div className="w-full max-w-2xl mx-auto mb-6 shrink-0">
                             <SearchBar
                                 placeholder="Search by medicine name, dosage, or batch..."
-                                onSearch={setSearchQuery}/>
+                                onSearch={(query) => {
+                                    setSearchQuery(query);
+                                    setCurrentPage(1);
+                                }} />
             </div>
             {showAddProduct && (
                 <div className="mb-6 bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
@@ -181,7 +194,49 @@ export function Inventory() {
             )}
 
             <div className="mx-auto w-full max-w-6xl">
-                <InventoryTable products={filteredCatalog} />
+                <InventoryTable products={paginatedCatalog} />
+                <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
+                    <span>
+                        Showing {filteredCatalog.length === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1}
+                        -{Math.min(safeCurrentPage * pageSize, filteredCatalog.length)} of {filteredCatalog.length}
+                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                            disabled={safeCurrentPage === 1}
+                            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            Previous
+                        </button>
+                        <span>
+                            Page {safeCurrentPage} of {totalPages}
+                        </span>
+                        <label className="flex items-center gap-2">
+                            <span className="whitespace-nowrap">Jump to</span>
+                            <input
+                                type="number"
+                                min={1}
+                                max={totalPages}
+                                value={safeCurrentPage}
+                                onChange={(event) => {
+                                    const nextPage = Number(event.target.value);
+                                    if (!Number.isFinite(nextPage)) return;
+                                    setCurrentPage(Math.min(totalPages, Math.max(1, Math.floor(nextPage))));
+                                }}
+                                className="w-20 rounded-lg border border-slate-200 px-2 py-1.5 text-center text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                            />
+                        </label>
+                        <button
+                            type="button"
+                            onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                            disabled={safeCurrentPage === totalPages}
+                            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            Next
+                        </button>
+                    </div>
+                </div>
             </div>
         </>
     );

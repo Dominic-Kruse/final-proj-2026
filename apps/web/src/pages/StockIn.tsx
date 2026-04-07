@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { productsApi } from "../api/products";
 import { inventoryApi } from "../api/inventory";
+import { SearchBar } from "../components/SearchBar";
 
 type StockInBatchDraft = {
     productId: number;
@@ -19,11 +20,12 @@ const defaultDateReceived = new Date().toISOString().slice(0, 10);
 
 export function StockIn() {
     const queryClient = useQueryClient();
+    const [productSearch, setProductSearch] = useState("");
 
     // ── Remote state ───────────────────────────────────────────────────────────
     const { data: productCatalog = [] } = useQuery({
-        queryKey: ["products"],
-        queryFn: productsApi.getAll,
+        queryKey: ["products", productSearch],
+        queryFn: () => productsApi.getAll(productSearch),
     });
 
     const addProductMutation = useMutation({
@@ -230,7 +232,18 @@ export function StockIn() {
                 <p className="text-sm text-slate-500">Capture supplier receipts and incoming batches</p>
             </div>
 
-            {/* <SearchBar placeholder="Search products..." onSearch={setSearchQuery} /> */}
+            <div className="mb-6 max-w-2xl">
+                <SearchBar
+                    placeholder="Search existing products by name or generic name..."
+                    onSearch={setProductSearch}
+                />
+            </div>
+
+            <div className="mb-4 text-sm text-slate-500">
+                {productSearch.trim()
+                    ? `Showing results for "${productSearch.trim()}"`
+                    : "Searching the full product catalog"}
+            </div>
 
             {showAddProduct ? (
                 <aside className="fixed right-0 top-0 z-40 h-full w-full max-w-xl overflow-y-auto border-l border-slate-200 bg-white shadow-2xl transition-transform duration-300 ease-out">
