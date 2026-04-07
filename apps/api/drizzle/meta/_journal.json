@@ -8,6 +8,34 @@
       "when": 1773906110887,
       "tag": "0000_warm_lord_hawal",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1774881554249,
+      "tag": "0001_tricky_hercules",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1774953687297,
+      "tag": "0002_naive_sleepwalker",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1775472008334,
+      "tag": "0003_fancy_hairball",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1775472008335,
+      "tag": "0004_products_search_indexes",
+      "breakpoints": true
     }
   ]
 }

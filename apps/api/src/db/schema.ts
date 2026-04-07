@@ -14,7 +14,7 @@ import {
 // Defines what the medicine is (The "Label")
 export const products = pgTable('products', {
   id: serial('id').primaryKey(),
-  sku: varchar('sku', { length: 100 }).unique(), // Barcode
+  sku: varchar('sku', { length: 100 }), // Barcode
   name: varchar('name', { length: 255 }).notNull(), // Brand Name
   genericName: text('generic_name').notNull(),
   description: text('description'),
@@ -46,10 +46,12 @@ export const inventoryBatches = pgTable('inventory_batches', {
   batchNumber: varchar('batch_number', { length: 100 }).notNull(),
   supplierId: integer('supplier_id'), // Link to a suppliers table if you have one
   
+  inventoryLocation: varchar('inventory_location', {length: 100 }).notNull(),
   // Dates
   expiryDate: date('expiry_date').notNull(),
   receivedDate: date('received_date').defaultNow(),
-  
+  supplierName: varchar('supplier_name', { length: 255 }),
+  referenceNumber: varchar('reference_number', { length: 100 }),
   // Quantities (Always track in BASE UNITS, i.e., pieces/tablets)
   initialQuantity: integer('initial_quantity').notNull(),
   currentQuantity: integer('current_quantity').notNull(),

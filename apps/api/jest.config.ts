@@ -4,11 +4,13 @@ const config: Config = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   verbose: true,
-  forceExit: true, // Useful for closing NeonDB connections
+  forceExit: true,
   clearMocks: true,
   resetModules: true,
+  globalTeardown: "./src/utils/__tests__/teardown.ts",
+  testPathIgnorePatterns: ["/node_modules/", "teardown.ts"], // ← add this
   moduleNameMapper: {
-    "^@/(.*)$": "<rootDir>/src/$1", // If you use path aliases
+    "^@/(.*)$": "<rootDir>/src/$1",
   },
 };
 
