@@ -5,6 +5,7 @@ import { InventoryTable } from "../components/InventoryTable";
 import { inventoryApi } from "../api/inventory";
 import { productsApi } from "../api/products";
 import { transformInventory } from "../utils/transformInventory";
+import { SearchBar } from "../components/SearchBar";
 
 // ── Transform backend response → InventoryTable shape ─────────────────────────
 // GET /inventory returns: { inventory_batches: Batch, products: Product }[]
@@ -32,6 +33,18 @@ export function Inventory() {
     const [newGenericName, setNewGenericName] = useState("");
     const [newBaseUnit, setNewBaseUnit] = useState("Tablet");
     const [errorMessage, setErrorMessage] = useState("");
+    const [searchQuery, setSearchQuery] = useState("");
+
+    const filteredCatalog = useMemo(() => {
+        const q = searchQuery.trim().toLowerCase();
+        if (!q) return catalog;
+        return catalog.filter(p =>
+            p.productDetails.toLowerCase().includes(q) ||
+            p.dosage.toLowerCase().includes(q) ||
+            p.batches.some(b => b.batchNumber.toLowerCase().includes(q))
+        );
+    }, [catalog, searchQuery]);
+
 
     const normalizedCatalog = useMemo(
         () => new Set(catalog.map((item) => `${item.productDetails.trim().toLowerCase()}|${item.dosage.trim().toLowerCase()}`)),
@@ -103,7 +116,11 @@ export function Inventory() {
                     </button>
                 </div>
             </div>
-
+            <div className="w-full max-w-2xl mx-auto mb-6 shrink-0">
+                            <SearchBar
+                                placeholder="Search by medicine name, dosage, or batch..."
+                                onSearch={setSearchQuery}/>
+            </div>
             {showAddProduct && (
                 <div className="mb-6 bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
                     <form onSubmit={handleAddProduct} className="flex flex-col gap-3 md:flex-row md:items-end">
@@ -164,7 +181,7 @@ export function Inventory() {
             )}
 
             <div className="mx-auto w-full max-w-6xl">
-                <InventoryTable products={catalog} />
+                <InventoryTable products={filteredCatalog} />
             </div>
         </>
     );
