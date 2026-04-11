@@ -146,7 +146,6 @@ export function BatchEntryForm({
         {/* Category */}
         <SectionDivider label="Category" />
         <div>
-          <p className="text-[10px] text-amber-500 mb-2">Currently null in DB — required going forward</p>
           <PillSelector
             options={CATEGORIES}
             value={category}
