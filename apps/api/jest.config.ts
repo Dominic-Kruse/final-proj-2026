@@ -7,8 +7,8 @@ const config: Config = {
   forceExit: true,
   clearMocks: true,
   resetModules: true,
-  globalTeardown: "./src/utils/__tests__/teardown.ts",
-  testPathIgnorePatterns: ["/node_modules/", "teardown.ts"], // ← add this
+  globalTeardown: "./src/__tests__/teardown.ts",
+  testPathIgnorePatterns: ["/node_modules/", "teardown.ts", "db.ts"],
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/src/$1",
   },
