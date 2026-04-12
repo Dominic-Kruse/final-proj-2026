@@ -6,19 +6,16 @@ import { inventoryApi } from "../api/inventory";
 import { productsApi } from "../api/products";
 import { transformInventory } from "../utils/transformInventory";
 import { SearchBar } from "../components/SearchBar";
-
-// ── Transform backend response → InventoryTable shape ─────────────────────────
-// GET /inventory returns: { inventory_batches: Batch, products: Product }[]
-// We need to group rows by product and sum up quantities.
+import { BASE_UNITS } from "../components/stockin/types";
 
 export function Inventory() {
     const queryClient = useQueryClient();
     const pageSize = 20;
 
     const { data: rawInventory = [], isLoading, isError } = useQuery({
-    queryKey: ["inventory"],
-    queryFn: inventoryApi.getAll, // already returns MedicineWithStock[]
-  });
+        queryKey: ["inventory"],
+        queryFn: inventoryApi.getAll,
+    });
 
     const addProductMutation = useMutation({
         mutationFn: productsApi.create,
@@ -26,8 +23,8 @@ export function Inventory() {
     });
 
     const catalog = useMemo(() => {
-            try { return transformInventory(rawInventory); } catch { return []; }
-        }, [rawInventory]);
+        try { return transformInventory(rawInventory); } catch { return []; }
+    }, [rawInventory]);
 
     const [showAddProduct, setShowAddProduct] = useState(false);
     const [newName, setNewName] = useState("");
@@ -51,27 +48,31 @@ export function Inventory() {
     const safeCurrentPage = Math.min(currentPage, totalPages);
 
     const paginatedCatalog = useMemo(() => {
-        const startIndex = (safeCurrentPage - 1) * pageSize;
-        return filteredCatalog.slice(startIndex, startIndex + pageSize);
+        const start = (safeCurrentPage - 1) * pageSize;
+        return filteredCatalog.slice(start, start + pageSize);
     }, [filteredCatalog, safeCurrentPage]);
 
-
     const normalizedCatalog = useMemo(
-        () => new Set(catalog.map((item) => `${item.productDetails.trim().toLowerCase()}|${item.dosage.trim().toLowerCase()}`)),
+        () => new Set(catalog.map(item => `${item.productDetails.trim().toLowerCase()}|${item.dosage.trim().toLowerCase()}`)),
         [catalog]
     );
 
-    const handleAddProduct = async (event: FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
+    // Summary counts
+    const stockCounts = useMemo(() => ({
+        inStock: catalog.filter(p => p.status === "In Stock").length,
+        lowStock: catalog.filter(p => p.status === "Low Stock").length,
+        outOfStock: catalog.filter(p => p.status === "Out of Stock").length,
+    }), [catalog]);
 
+    const handleAddProduct = async (e: FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
         const trimmedName = newName.trim();
         const trimmedGenericName = newGenericName.trim();
 
         if (!trimmedName) { setErrorMessage("Product name is required."); return; }
         if (!trimmedGenericName) { setErrorMessage("Generic name is required."); return; }
         if (normalizedCatalog.has(`${trimmedName.toLowerCase()}|${trimmedGenericName.toLowerCase()}`)) {
-            setErrorMessage("This product already exists in the catalog.");
-            return;
+            setErrorMessage("This product already exists in the catalog."); return;
         }
 
         try {
@@ -84,11 +85,8 @@ export function Inventory() {
                 requiresColdChain: false,
                 reorderLevel: 10,
             });
-            setNewName("");
-            setNewGenericName("");
-            setNewBaseUnit("Tablet");
-            setErrorMessage("");
-            setShowAddProduct(false);
+            setNewName(""); setNewGenericName(""); setNewBaseUnit("Tablet");
+            setErrorMessage(""); setShowAddProduct(false);
         } catch {
             setErrorMessage("Failed to add product. Please try again.");
         }
@@ -96,95 +94,130 @@ export function Inventory() {
 
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center py-20 text-slate-500 text-sm">
-                Loading inventory...
+            <div className="flex flex-col items-center justify-center py-24 gap-3">
+                <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                <p className="text-sm text-slate-400">Loading inventory...</p>
             </div>
         );
     }
 
     if (isError) {
         return (
-            <div className="flex items-center justify-center py-20 text-red-500 text-sm">
-                Failed to load inventory. Is the backend running?
+            <div className="flex flex-col items-center justify-center py-24 gap-3">
+                <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-red-500 text-xl">!</div>
+                <p className="text-sm text-red-500 font-medium">Failed to load inventory</p>
+                <p className="text-xs text-slate-400">Is the backend running?</p>
             </div>
         );
     }
 
     return (
-        <>
-            <div className="flex justify-between items-center mb-8">
-                <h1 className="text-2xl font-bold text-slate-800">Inventory</h1>
-                <div className="flex items-center gap-3">
-                    <button className="px-4 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors font-medium text-sm shadow-sm">
+        <div className="space-y-5">
+            {/* Page header */}
+            <div className="flex justify-between items-start">
+                <div>
+                    <h1 className="text-2xl font-bold text-slate-800">Inventory</h1>
+                    <p className="text-sm text-slate-500 mt-1">Track medicines, batches, and stock levels</p>
+                </div>
+                <div className="flex items-center gap-2">
+                    <button className="px-3 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-slate-600 shadow-sm">
                         Export CSV
                     </button>
                     <button
                         onClick={() => { setShowAddProduct(true); setErrorMessage(""); }}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm shadow-sm flex items-center gap-2"
+                        className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs font-semibold shadow-sm flex items-center gap-1.5"
                     >
-                        <span>+</span> Add Product
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                            <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                        </svg>
+                        Add product
                     </button>
                 </div>
             </div>
-            <div className="w-full max-w-2xl mx-auto mb-6 shrink-0">
-                            <SearchBar
-                                placeholder="Search by medicine name, dosage, or batch..."
-                                onSearch={(query) => {
-                                    setSearchQuery(query);
-                                    setCurrentPage(1);
-                                }} />
+
+            {/* Stock summary chips */}
+            <div className="flex gap-3 flex-wrap">
+                <div className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-xl shadow-sm text-xs">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                    <span className="font-semibold text-slate-700">{stockCounts.inStock}</span>
+                    <span className="text-slate-400">In stock</span>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-2 bg-white border border-amber-200 rounded-xl shadow-sm text-xs">
+                    <span className="w-2 h-2 rounded-full bg-amber-400" />
+                    <span className="font-semibold text-amber-700">{stockCounts.lowStock}</span>
+                    <span className="text-slate-400">Low stock</span>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-2 bg-white border border-red-200 rounded-xl shadow-sm text-xs">
+                    <span className="w-2 h-2 rounded-full bg-red-400" />
+                    <span className="font-semibold text-red-700">{stockCounts.outOfStock}</span>
+                    <span className="text-slate-400">Out of stock</span>
+                </div>
             </div>
+
+            {/* Search */}
+            <SearchBar
+                placeholder="Search by medicine name, generic name, or batch number..."
+                onSearch={(q) => { setSearchQuery(q); setCurrentPage(1); }}
+            />
+
+            {/* Add product inline form */}
             {showAddProduct && (
-                <div className="mb-6 bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                <div className="bg-white border border-blue-100 rounded-2xl p-5 shadow-sm">
+                    <div className="flex items-center justify-between mb-4">
+                        <div>
+                            <p className="text-sm font-semibold text-slate-800">Add new product</p>
+                            <p className="text-xs text-slate-400 mt-0.5">Quick-add a medicine to the catalog</p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => { setShowAddProduct(false); setNewName(""); setNewGenericName(""); setErrorMessage(""); }}
+                            className="text-slate-400 hover:text-slate-600 text-lg leading-none w-7 h-7 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors"
+                        >
+                            ×
+                        </button>
+                    </div>
                     <form onSubmit={handleAddProduct} className="flex flex-col gap-3 md:flex-row md:items-end">
                         <div className="flex-1">
-                            <label htmlFor="product-name" className="block text-sm font-medium text-slate-700 mb-1">Brand / Product Name</label>
+                            <label className="block text-xs font-medium text-slate-600 mb-1">Brand / product name <span className="text-red-400">*</span></label>
                             <input
-                                id="product-name"
                                 value={newName}
                                 onChange={(e) => { setNewName(e.target.value); if (errorMessage) setErrorMessage(""); }}
                                 placeholder="e.g. Biogesic"
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
                             />
                         </div>
                         <div className="flex-1">
-                            <label htmlFor="generic-name" className="block text-sm font-medium text-slate-700 mb-1">Generic Name</label>
+                            <label className="block text-xs font-medium text-slate-600 mb-1">Generic name <span className="text-red-400">*</span></label>
                             <input
-                                id="generic-name"
                                 value={newGenericName}
                                 onChange={(e) => { setNewGenericName(e.target.value); if (errorMessage) setErrorMessage(""); }}
                                 placeholder="e.g. Paracetamol 500mg"
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
                             />
-                            {errorMessage && <p className="mt-1 text-sm text-red-600">{errorMessage}</p>}
+                            {errorMessage && <p className="mt-1 text-xs text-red-500">{errorMessage}</p>}
                         </div>
-                        <div className="w-full md:w-36">
-                            <label htmlFor="base-unit" className="block text-sm font-medium text-slate-700 mb-1">Base Unit</label>
+                        <div className="w-full md:w-32">
+                            <label className="block text-xs font-medium text-slate-600 mb-1">Base unit</label>
                             <select
-                                id="base-unit"
                                 value={newBaseUnit}
                                 onChange={(e) => setNewBaseUnit(e.target.value)}
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
                             >
-                                <option>Tablet</option>
-                                <option>Capsule</option>
-                                <option>mL</option>
-                                <option>Sachet</option>
-                                <option>Piece</option>
+                                {BASE_UNITS.map(u => <option key={u}>{u}</option>)}
                             </select>
                         </div>
                         <div className="flex gap-2">
                             <button
                                 type="submit"
                                 disabled={addProductMutation.isPending}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm disabled:opacity-50"
+                                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50"
                             >
-                                {addProductMutation.isPending ? "Saving..." : "Save Product"}
+                                {addProductMutation.isPending ? "Saving..." : "Save"}
                             </button>
                             <button
                                 type="button"
                                 onClick={() => { setShowAddProduct(false); setNewName(""); setNewGenericName(""); setErrorMessage(""); }}
-                                className="px-4 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors font-medium text-sm"
+                                className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
                             >
                                 Cancel
                             </button>
@@ -193,51 +226,54 @@ export function Inventory() {
                 </div>
             )}
 
-            <div className="mx-auto w-full max-w-6xl">
-                <InventoryTable products={paginatedCatalog} />
-                <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
-                    <span>
-                        Showing {filteredCatalog.length === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1}
-                        -{Math.min(safeCurrentPage * pageSize, filteredCatalog.length)} of {filteredCatalog.length}
+            {/* Table */}
+            <InventoryTable products={paginatedCatalog} />
+
+            {/* Pagination */}
+            <div className="flex items-center justify-between gap-3 bg-white rounded-2xl border border-slate-200 px-5 py-3 text-sm text-slate-500 shadow-sm">
+                <span className="text-xs">
+                    Showing{" "}
+                    <strong className="text-slate-700">
+                        {filteredCatalog.length === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1}–{Math.min(safeCurrentPage * pageSize, filteredCatalog.length)}
+                    </strong>{" "}
+                    of <strong className="text-slate-700">{filteredCatalog.length}</strong>
+                </span>
+                <div className="flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={safeCurrentPage === 1}
+                        className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
+                    >
+                        ← Previous
+                    </button>
+                    <span className="text-xs text-slate-400">
+                        Page <strong className="text-slate-600">{safeCurrentPage}</strong> of {totalPages}
                     </span>
-                    <div className="flex flex-wrap items-center gap-2">
-                        <button
-                            type="button"
-                            onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                            disabled={safeCurrentPage === 1}
-                            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                            Previous
-                        </button>
-                        <span>
-                            Page {safeCurrentPage} of {totalPages}
-                        </span>
-                        <label className="flex items-center gap-2">
-                            <span className="whitespace-nowrap">Jump to</span>
-                            <input
-                                type="number"
-                                min={1}
-                                max={totalPages}
-                                value={safeCurrentPage}
-                                onChange={(event) => {
-                                    const nextPage = Number(event.target.value);
-                                    if (!Number.isFinite(nextPage)) return;
-                                    setCurrentPage(Math.min(totalPages, Math.max(1, Math.floor(nextPage))));
-                                }}
-                                className="w-20 rounded-lg border border-slate-200 px-2 py-1.5 text-center text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
-                            />
-                        </label>
-                        <button
-                            type="button"
-                            onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-                            disabled={safeCurrentPage === totalPages}
-                            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                            Next
-                        </button>
-                    </div>
+                    <label className="flex items-center gap-1.5 text-xs text-slate-400">
+                        Jump to
+                        <input
+                            type="number"
+                            min={1}
+                            max={totalPages}
+                            value={safeCurrentPage}
+                            onChange={(e) => {
+                                const n = Number(e.target.value);
+                                if (Number.isFinite(n)) setCurrentPage(Math.min(totalPages, Math.max(1, Math.floor(n))));
+                            }}
+                            className="w-14 px-2 py-1 border border-slate-200 rounded-lg text-center text-xs text-slate-700 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                        />
+                    </label>
+                    <button
+                        type="button"
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        disabled={safeCurrentPage === totalPages}
+                        className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
+                    >
+                        Next →
+                    </button>
                 </div>
             </div>
-        </>
+        </div>
     );
 }
