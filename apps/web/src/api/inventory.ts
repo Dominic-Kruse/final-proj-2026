@@ -1,10 +1,61 @@
 import { apiClient } from "../lib/apiClient";
 import type { Batch, MedicineWithStock } from "../utils/types";
 
+type InventoryQueryParams = {
+    page?: number;
+    limit?: number;
+    search?: string;
+};
+
+export type InventoryResponse = {
+    metadata: {
+        currentPage: number;
+        totalPages: number;
+        totalCount: number;
+        limit: number;
+    };
+    data: MedicineWithStock[];
+};
+
+async function getInventoryPage(params: InventoryQueryParams = {}): Promise<InventoryResponse> {
+    const res = await apiClient.get("/inventory", { params });
+
+    if (Array.isArray(res.data)) {
+        return {
+            metadata: {
+                currentPage: 1,
+                totalPages: 1,
+                totalCount: res.data.length,
+                limit: res.data.length,
+            },
+            data: res.data,
+        };
+    }
+
+    return res.data as InventoryResponse;
+}
+
+async function getAllInventory(): Promise<MedicineWithStock[]> {
+    const pageSize = 100;
+    let page = 1;
+    let totalPages = 1;
+    const all: MedicineWithStock[] = [];
+
+    do {
+        const response = await getInventoryPage({ page, limit: pageSize });
+        all.push(...response.data);
+        totalPages = response.metadata.totalPages || 1;
+        page += 1;
+    } while (page <= totalPages);
+
+    return all;
+}
+
 export const inventoryApi = {
+    getPage: getInventoryPage,
+
     getAll: async (): Promise<MedicineWithStock[]> => {
-        const res = await apiClient.get("/inventory");
-        return res.data;
+        return getAllInventory();
     },
 
     getById: async (id: number): Promise<MedicineWithStock> => {

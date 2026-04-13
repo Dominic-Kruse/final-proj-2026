@@ -9,7 +9,8 @@
     "test": "jest --config jest.config.ts --runInBand --detectOpenHandles",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "db:seed:medicines": "tsx src/scripts/seedMedicines.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.2",

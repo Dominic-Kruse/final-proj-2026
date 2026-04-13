@@ -54,10 +54,27 @@ afterAll(async () => {
 
 // ── Tests ──────────────────────────────────────────────────────────────────────
 describe("GET /inventory", () => {
-  it("returns 200 and an array", async () => {
+  it("returns 200 with metadata and data array", async () => {
     const res = await request(app).get("/inventory");
     expect(res.status).toBe(200);
-    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body).toHaveProperty("metadata");
+    expect(res.body).toHaveProperty("data");
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.metadata).toHaveProperty("currentPage");
+    expect(res.body.metadata).toHaveProperty("totalPages");
+    expect(res.body.metadata).toHaveProperty("totalCount");
+    expect(res.body.metadata).toHaveProperty("limit");
+  });
+
+  it("supports pagination and returns limited rows", async () => {
+    await request(app).post("/products").send(makeProduct({ name: `Paginated Product A ${Date.now()}` }));
+    await request(app).post("/products").send(makeProduct({ name: `Paginated Product B ${Date.now()}` }));
+
+    const res = await request(app).get("/inventory?page=1&limit=1");
+    expect(res.status).toBe(200);
+    expect(res.body.metadata.currentPage).toBe(1);
+    expect(res.body.metadata.limit).toBe(1);
+    expect(res.body.data).toHaveLength(1);
   });
 });
 

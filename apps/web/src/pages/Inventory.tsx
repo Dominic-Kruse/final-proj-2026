@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { InventoryTable } from "../components/InventoryTable";
-import { inventoryApi } from "../api/inventory";
+import { inventoryApi, type InventoryResponse } from "../api/inventory";
 import { productsApi } from "../api/products";
 import { transformInventory } from "../utils/transformInventory";
 import { SearchBar } from "../components/SearchBar";
@@ -11,11 +11,30 @@ import { BASE_UNITS } from "../components/stockin/types";
 export function Inventory() {
     const queryClient = useQueryClient();
     const pageSize = 20;
+    const [searchInput, setSearchInput] = useState("");
+    const [searchQuery, setSearchQuery] = useState("");
+    const [currentPage, setCurrentPage] = useState(1);
 
-    const { data: rawInventory = [], isLoading, isError } = useQuery({
-        queryKey: ["inventory"],
-        queryFn: inventoryApi.getAll,
+    useEffect(() => {
+        const timer = window.setTimeout(() => {
+            setSearchQuery(searchInput.trim());
+            setCurrentPage(1);
+        }, 350);
+
+        return () => window.clearTimeout(timer);
+    }, [searchInput]);
+
+    const { data: inventoryPage, isLoading, isFetching, isError } = useQuery<InventoryResponse>({
+        queryKey: ["inventory", currentPage, pageSize, searchQuery],
+        queryFn: () => inventoryApi.getPage({
+            page: currentPage,
+            limit: pageSize,
+            search: searchQuery || undefined,
+        }),
+        placeholderData: (previousData) => previousData,
     });
+
+    const rawInventory = inventoryPage?.data ?? [];
 
     const addProductMutation = useMutation({
         mutationFn: productsApi.create,
@@ -31,26 +50,10 @@ export function Inventory() {
     const [newGenericName, setNewGenericName] = useState("");
     const [newBaseUnit, setNewBaseUnit] = useState("Tablet");
     const [errorMessage, setErrorMessage] = useState("");
-    const [searchQuery, setSearchQuery] = useState("");
-    const [currentPage, setCurrentPage] = useState(1);
 
-    const filteredCatalog = useMemo(() => {
-        const q = searchQuery.trim().toLowerCase();
-        if (!q) return catalog;
-        return catalog.filter(p =>
-            p.productDetails.toLowerCase().includes(q) ||
-            p.dosage.toLowerCase().includes(q) ||
-            p.batches.some(b => b.batchNumber.toLowerCase().includes(q))
-        );
-    }, [catalog, searchQuery]);
-
-    const totalPages = Math.max(1, Math.ceil(filteredCatalog.length / pageSize));
-    const safeCurrentPage = Math.min(currentPage, totalPages);
-
-    const paginatedCatalog = useMemo(() => {
-        const start = (safeCurrentPage - 1) * pageSize;
-        return filteredCatalog.slice(start, start + pageSize);
-    }, [filteredCatalog, safeCurrentPage]);
+    const totalPages = Math.max(1, inventoryPage?.metadata.totalPages ?? 1);
+    const safeCurrentPage = inventoryPage?.metadata.currentPage ?? 1;
+    const totalCount = inventoryPage?.metadata.totalCount ?? catalog.length;
 
     const normalizedCatalog = useMemo(
         () => new Set(catalog.map(item => `${item.productDetails.trim().toLowerCase()}|${item.dosage.trim().toLowerCase()}`)),
@@ -93,7 +96,7 @@ export function Inventory() {
         }
     };
 
-    if (isLoading) {
+    if (isLoading && !inventoryPage) {
         return (
             <div className="flex flex-col items-center justify-center py-24 gap-3">
                 <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
@@ -157,9 +160,12 @@ export function Inventory() {
 
             {/* Search */}
             <SearchBar
-                placeholder="Search by medicine name, generic name, or batch number..."
-                onSearch={(q) => { setSearchQuery(q); setCurrentPage(1); }}
+                placeholder="Search by medicine name or generic name..."
+                onSearch={(q) => setSearchInput(q)}
             />
+            {isFetching && (
+                <p className="text-xs text-slate-400">Updating results...</p>
+            )}
 
             {/* Add product inline form */}
             {showAddProduct && (
@@ -228,16 +234,16 @@ export function Inventory() {
             )}
 
             {/* Table */}
-            <InventoryTable products={paginatedCatalog} />
+            <InventoryTable products={catalog} />
 
             {/* Pagination */}
             <div className="flex items-center justify-between gap-3 bg-white rounded-2xl border border-slate-200 px-5 py-3 text-sm text-slate-500 shadow-sm">
                 <span className="text-xs">
                     Showing{" "}
                     <strong className="text-slate-700">
-                        {filteredCatalog.length === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1}–{Math.min(safeCurrentPage * pageSize, filteredCatalog.length)}
+                        {totalCount === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1}–{Math.min(safeCurrentPage * pageSize, totalCount)}
                     </strong>{" "}
-                    of <strong className="text-slate-700">{filteredCatalog.length}</strong>
+                    of <strong className="text-slate-700">{totalCount}</strong>
                 </span>
                 <div className="flex items-center gap-2">
                     <button

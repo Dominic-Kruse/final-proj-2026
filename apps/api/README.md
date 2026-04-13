@@ -9,6 +9,7 @@
 - Run API in dev mode: `npm --workspace apps/api run dev`
 - Run API tests: `npm --workspace apps/api test`
 - Build API: `npm --workspace apps/api run build`
+- Seed sample medicines: `npm --workspace apps/api run db:seed:medicines`
 
 ## Notes
 - Tests run in-band with open handle detection for stability.
