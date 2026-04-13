@@ -1,7 +1,7 @@
 import request from "supertest";
 import express from "express";
 import productsRoutes from "../routes/productsRoutes"
-import {db} from "./db"
+import { db } from "../db"
 import {inventoryBatches, products, stockTransactions} from "../db/schema"
 
 const app = express();
