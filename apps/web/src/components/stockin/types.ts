@@ -1,7 +1,7 @@
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 export const CATEGORIES = [
-  "Analgesic", "Antibiotic", "Antihypertensive", "Antihistamine",
+  "Analgesic","Anti-inflammatory", "Antibiotic", "Antihypertensive", "Antihistamine",
   "Antidiabetic", "Antacid / GI", "Vitamin / Supplement", "Antifungal",
   "Cardiovascular", "Respiratory", "Dermatological", "Ophthalmic",
   "Psychiatric", "Vaccine", "Other",

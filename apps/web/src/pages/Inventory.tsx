@@ -80,6 +80,7 @@ export function Inventory() {
                 name: trimmedName,
                 genericName: trimmedGenericName,
                 baseUnit: newBaseUnit,
+                packageUnit: null,
                 conversionFactor: 1,
                 isPrescriptionRequired: false,
                 requiresColdChain: false,

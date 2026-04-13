@@ -1,4 +1,4 @@
-import {apiClient} from "../lib/apiClient";
+import { apiClient } from "../lib/apiClient";
 import type { Medicine } from "../utils/types";
 
 type ProductsQueryParams = {
@@ -15,6 +15,22 @@ type ProductsResponse = {
         limit: number;
     };
     data: Medicine[];
+};
+
+// ── Create payload — explicit so packageUnit & conversionFactor are never dropped ──
+export type CreateProductPayload = {
+    name: string;
+    genericName: string;
+    description?: string;
+    category?: string | null;
+    form?: string | null;
+    baseUnit: string;
+    packageUnit?: string | null;      // ← was missing from the Omit<Medicine> call sites
+    conversionFactor: number;         // ← same
+    isPrescriptionRequired: boolean;
+    requiresColdChain: boolean;
+    reorderLevel: number;
+    sku?: string;
 };
 
 async function getProductsPage(params: ProductsQueryParams = {}): Promise<ProductsResponse> {
@@ -63,18 +79,20 @@ export const productsApi = {
         return res.data;
     },
 
-    create: async (data: Omit<Medicine, "id" | "updatedAt">): Promise<Medicine> => {
+    // ✅ Use explicit CreateProductPayload instead of Omit<Medicine, ...>
+    // This ensures packageUnit and conversionFactor are always included in the request body
+    create: async (data: CreateProductPayload): Promise<Medicine> => {
         const res = await apiClient.post("/products", data);
         return res.data;
     },
 
-    update: async ( id:number, data: Partial<Medicine>): Promise<Medicine> => {
+    update: async (id: number, data: Partial<Medicine>): Promise<Medicine> => {
         const res = await apiClient.put(`/products/${id}`, data);
-        return res.data
+        return res.data;
     },
 
-    delete: async (id: number): Promise<{message: string}> => {
+    delete: async (id: number): Promise<{ message: string }> => {
         const res = await apiClient.delete(`/products/${id}`);
         return res.data;
     },
-}
+};

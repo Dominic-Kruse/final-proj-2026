@@ -90,8 +90,6 @@ export function InventoryTable({ products = [], mode = "view", onAddBatch }: Inv
 
     return (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-
-            {/* Header */}
             <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2.5">
                 <h2 className="text-sm font-bold text-slate-800">
                     {mode === "dispense" ? "Select medicine" : "Inventory master"}
@@ -103,8 +101,6 @@ export function InventoryTable({ products = [], mode = "view", onAddBatch }: Inv
 
             <div className="overflow-x-auto">
                 <table className="w-full border-collapse" style={{ minWidth: 860, fontSize: 13 }}>
-
-                    {/* ── Product-level column headers ── */}
                     <thead>
                         <tr className="bg-slate-50 border-b border-slate-200">
                             <th className="text-left px-5 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Product · Unit</th>
@@ -125,16 +121,14 @@ export function InventoryTable({ products = [], mode = "view", onAddBatch }: Inv
                             const hasExpired = batchDays.some(d => d <= 0);
                             const hasNearExpiry = !hasExpired && batchDays.some(d => d <= 90);
                             const availableCount = product.batches.filter(b => daysLeft(b.expiryDate) > 0).length;
-                            const maxQty = Math.max(...product.batches.map(b => b.quantity), 1);
 
+                            // Unit display
                             const unitLabel = product.packageUnit
                                 ? `${product.conversionFactor} ${product.baseUnit}s / ${product.packageUnit}`
                                 : product.baseUnit;
 
                             return (
                                 <Fragment key={product.productId}>
-
-                                    {/* ── Product row ── */}
                                     <tr
                                         className={`cursor-pointer transition-colors ${isExpanded ? "bg-blue-50/30" : "hover:bg-slate-50"}`}
                                         onClick={() => setExpandedProduct(isExpanded ? null : product.productId)}
@@ -230,7 +224,7 @@ export function InventoryTable({ products = [], mode = "view", onAddBatch }: Inv
                                                                     <th className="text-left px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Expiry</th>
                                                                     <th className="text-left px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Days left</th>
                                                                     <th className="text-right px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Qty</th>
-                                                                    <th className="text-left px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Stock</th>
+                                                                    <th className="text-left px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Share of stock</th>
                                                                     <th className="text-right px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Cost</th>
                                                                     <th className="text-right px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Sell price</th>
                                                                     {mode === "dispense" && (
@@ -243,7 +237,11 @@ export function InventoryTable({ products = [], mode = "view", onAddBatch }: Inv
                                                                     const days = daysLeft(batch.expiryDate);
                                                                     const expired = days <= 0;
                                                                     const near = !expired && days <= 90;
-                                                                    const pct = Math.round((batch.quantity / maxQty) * 100);
+
+                                                                    // ✅ FIX: % of total product stock, not relative to largest batch
+                                                                    const pct = product.totalStock > 0
+                                                                        ? Math.round((batch.quantity / product.totalStock) * 100)
+                                                                        : 0;
 
                                                                     return (
                                                                         <tr key={batch.batchNumber}
@@ -264,7 +262,7 @@ export function InventoryTable({ products = [], mode = "view", onAddBatch }: Inv
                                                                                 </span>
                                                                             </td>
 
-                                                                            {/* Expiry date */}
+                                                                            {/* Expiry */}
                                                                             <td className="px-4 py-2.5">
                                                                                 <span className={`font-semibold ${expired ? "text-red-700" : near ? "text-amber-700" : "text-slate-700"}`}>
                                                                                     {batch.expiryDate}
@@ -282,10 +280,10 @@ export function InventoryTable({ products = [], mode = "view", onAddBatch }: Inv
                                                                                 <span className="text-[10px] text-slate-400 ml-1">{product.baseUnit}s</span>
                                                                             </td>
 
-                                                                            {/* Stock bar */}
+                                                                            {/* Share of stock bar — % of total product stock */}
                                                                             <td className="px-4 py-2.5">
                                                                                 <div className="flex items-center gap-1.5">
-                                                                                    <div className="w-14 h-1.5 bg-slate-100 rounded-full overflow-hidden shrink-0">
+                                                                                    <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden shrink-0">
                                                                                         <div
                                                                                             className={`h-full rounded-full ${expired ? "bg-red-400" : near ? "bg-amber-400" : "bg-emerald-400"}`}
                                                                                             style={{ width: `${pct}%` }}
