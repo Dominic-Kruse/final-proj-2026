@@ -1,5 +1,25 @@
 # React + TypeScript + Vite
 
+## End-to-end testing with Playwright
+
+Run from the repository root:
+
+```bash
+npm --workspace apps/web run test:e2e
+```
+
+Useful variants:
+
+```bash
+npm --workspace apps/web run test:e2e:ui
+npm --workspace apps/web run test:e2e:headed
+```
+
+Notes:
+
+- The Playwright config starts the monorepo dev command, so API and web run together.
+- Ensure API environment variables are configured before running E2E tests.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:
