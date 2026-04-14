@@ -6,6 +6,7 @@ type SeedMedicine = {
   sku: string;
   name: string;
   genericName: string;
+  dosage: string;
   description: string;
   category: string;
   form: string;
@@ -16,6 +17,12 @@ type SeedMedicine = {
   requiresColdChain: boolean;
   reorderLevel: number;
 };
+
+function combineGenericNameAndDosage(genericName: string, dosage: string): string {
+  const generic = genericName.trim();
+  const dose = dosage.trim();
+  return dose ? `${generic} ${dose}` : generic;
+}
 
 type SeedBatch = {
   productSku: string;
@@ -35,7 +42,8 @@ const SAMPLE_MEDICINES: SeedMedicine[] = [
   {
     sku: "MED-PARA-500-TAB",
     name: "Biogesic",
-    genericName: "Paracetamol 500mg",
+    genericName: "Paracetamol",
+    dosage: "500mg",
     description: "For fever and mild pain relief.",
     category: "Analgesic",
     form: "Tablet",
@@ -49,7 +57,8 @@ const SAMPLE_MEDICINES: SeedMedicine[] = [
   {
     sku: "MED-AMOX-500-CAP",
     name: "Amoxil",
-    genericName: "Amoxicillin 500mg",
+    genericName: "Amoxicillin",
+    dosage: "500mg",
     description: "Broad-spectrum antibiotic capsule.",
     category: "Antibiotic",
     form: "Capsule",
@@ -63,7 +72,8 @@ const SAMPLE_MEDICINES: SeedMedicine[] = [
   {
     sku: "MED-METF-500-TAB",
     name: "Glucophage",
-    genericName: "Metformin 500mg",
+    genericName: "Metformin",
+    dosage: "500mg",
     description: "First-line medicine for type 2 diabetes.",
     category: "Antidiabetic",
     form: "Tablet",
@@ -77,7 +87,8 @@ const SAMPLE_MEDICINES: SeedMedicine[] = [
   {
     sku: "MED-ATOR-20-TAB",
     name: "Lipitor",
-    genericName: "Atorvastatin 20mg",
+    genericName: "Atorvastatin",
+    dosage: "20mg",
     description: "Lipid-lowering medicine.",
     category: "Cardiovascular",
     form: "Tablet",
@@ -91,7 +102,8 @@ const SAMPLE_MEDICINES: SeedMedicine[] = [
   {
     sku: "MED-LOSR-50-TAB",
     name: "Cozaar",
-    genericName: "Losartan 50mg",
+    genericName: "Losartan",
+    dosage: "50mg",
     description: "Antihypertensive angiotensin receptor blocker.",
     category: "Cardiovascular",
     form: "Tablet",
@@ -105,7 +117,8 @@ const SAMPLE_MEDICINES: SeedMedicine[] = [
   {
     sku: "MED-OMEP-20-CAP",
     name: "Losec",
-    genericName: "Omeprazole 20mg",
+    genericName: "Omeprazole",
+    dosage: "20mg",
     description: "For acid reflux and ulcer care.",
     category: "Gastrointestinal",
     form: "Capsule",
@@ -119,7 +132,8 @@ const SAMPLE_MEDICINES: SeedMedicine[] = [
   {
     sku: "MED-CETR-10-TAB",
     name: "Zyrtec",
-    genericName: "Cetirizine 10mg",
+    genericName: "Cetirizine",
+    dosage: "10mg",
     description: "Antihistamine for allergy symptoms.",
     category: "Antihistamine",
     form: "Tablet",
@@ -133,7 +147,8 @@ const SAMPLE_MEDICINES: SeedMedicine[] = [
   {
     sku: "MED-SALB-2-SYP",
     name: "Ventolin Syrup",
-    genericName: "Salbutamol 2mg/5mL",
+    genericName: "Salbutamol",
+    dosage: "2mg/5mL",
     description: "Bronchodilator syrup for airway relief.",
     category: "Respiratory",
     form: "Syrup",
@@ -147,7 +162,8 @@ const SAMPLE_MEDICINES: SeedMedicine[] = [
   {
     sku: "MED-INSU-REG-VIAL",
     name: "Humulin R",
-    genericName: "Regular Human Insulin 100IU/mL",
+    genericName: "Regular Human Insulin",
+    dosage: "100IU/mL",
     description: "Short-acting insulin vial.",
     category: "Antidiabetic",
     form: "Injection",
@@ -161,7 +177,8 @@ const SAMPLE_MEDICINES: SeedMedicine[] = [
   {
     sku: "MED-AZITH-500-TAB",
     name: "Zithromax",
-    genericName: "Azithromycin 500mg",
+    genericName: "Azithromycin",
+    dosage: "500mg",
     description: "Macrolide antibiotic tablet.",
     category: "Antibiotic",
     form: "Tablet",
@@ -271,7 +288,10 @@ async function seedMedicines() {
       continue;
     }
 
-    await db.insert(products).values(medicine);
+    await db.insert(products).values({
+      ...medicine,
+      genericName: combineGenericNameAndDosage(medicine.genericName, medicine.dosage),
+    });
     inserted += 1;
   }
 

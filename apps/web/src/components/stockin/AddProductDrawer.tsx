@@ -14,6 +14,9 @@ export function AddProductDrawer({ pending, onClose, onSaved }: AddProductDrawer
     const queryClient = useQueryClient();
     const [name, setName] = useState(pending.productName);
     const [genericName, setGenericName] = useState(pending.genericName);
+    const [dosage, setDosage] = useState(
+        pending.strengthValue ? `${pending.strengthValue} ${pending.strengthUnit}` : ""
+    );
     const [message, setMessage] = useState("");
 
     const mutation = useMutation({
@@ -27,6 +30,7 @@ export function AddProductDrawer({ pending, onClose, onSaved }: AddProductDrawer
             const newProduct = await mutation.mutateAsync({
                 name: name.trim(),
                 genericName: genericName.trim(),
+                dosage: dosage.trim() || null,
                 baseUnit: pending.baseUnit,
                 // ✅ packageUnit and conversionFactor now sent to backend
                 packageUnit: pending.packageUnit || null,
@@ -77,7 +81,8 @@ export function AddProductDrawer({ pending, onClose, onSaved }: AddProductDrawer
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                     {[
                         { label: "Brand / product name", value: name, setter: setName, placeholder: "e.g. Biogesic" },
-                        { label: "Generic name", value: genericName, setter: setGenericName, placeholder: "e.g. Paracetamol 500mg" },
+                        { label: "Generic name", value: genericName, setter: setGenericName, placeholder: "e.g. Paracetamol" },
+                        { label: "Dosage", value: dosage, setter: setDosage, placeholder: "e.g. 500mg" },
                     ].map(({ label, value, setter, placeholder }) => (
                         <div key={label}>
                             <label className="block text-xs font-medium text-slate-600 mb-1.5">

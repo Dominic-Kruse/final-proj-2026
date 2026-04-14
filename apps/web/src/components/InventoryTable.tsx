@@ -15,7 +15,8 @@ export type ProductBatch = {
 export type ProductCatalogItem = {
     productId: number;
     productDetails: string;
-    dosage: string;
+    genericName: string;
+    dosage: string | null;
     form: string | null;
     baseUnit: string;
     packageUnit: string | null;
@@ -143,7 +144,10 @@ export function InventoryTable({ products = [], mode = "view", onAddBatch }: Inv
 
                                         {/* Generic + form */}
                                         <td className="px-3 py-3" style={{ width: "19%" }}>
-                                            <p className="text-slate-700 leading-tight">{product.dosage}</p>
+                                            <p className="text-slate-700 leading-tight">{product.genericName}</p>
+                                            {product.dosage && (
+                                                <p className="text-[11px] text-slate-500 mt-0.5">{product.dosage}</p>
+                                            )}
                                             {product.form && (
                                                 <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-100">
                                                     {product.form}

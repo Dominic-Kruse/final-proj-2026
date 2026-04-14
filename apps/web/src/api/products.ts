@@ -21,6 +21,7 @@ type ProductsResponse = {
 export type CreateProductPayload = {
     name: string;
     genericName: string;
+    dosage?: string | null;
     description?: string;
     category?: string | null;
     form?: string | null;
@@ -32,6 +33,12 @@ export type CreateProductPayload = {
     reorderLevel: number;
     sku?: string;
 };
+
+function combineGenericNameAndDosage(genericName: string, dosage?: string | null): string {
+    const generic = genericName.trim();
+    const dosageText = (dosage ?? "").trim();
+    return dosageText ? `${generic} ${dosageText}` : generic;
+}
 
 async function getProductsPage(params: ProductsQueryParams = {}): Promise<ProductsResponse> {
     const res = await apiClient.get("/products", { params });
@@ -82,7 +89,11 @@ export const productsApi = {
     // ✅ Use explicit CreateProductPayload instead of Omit<Medicine, ...>
     // This ensures packageUnit and conversionFactor are always included in the request body
     create: async (data: CreateProductPayload): Promise<Medicine> => {
-        const res = await apiClient.post("/products", data);
+        const payload = {
+            ...data,
+            genericName: combineGenericNameAndDosage(data.genericName, data.dosage),
+        };
+        const res = await apiClient.post("/products", payload);
         return res.data;
     },
 

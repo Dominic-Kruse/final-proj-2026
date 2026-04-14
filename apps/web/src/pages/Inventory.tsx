@@ -48,6 +48,7 @@ export function Inventory() {
     const [showAddProduct, setShowAddProduct] = useState(false);
     const [newName, setNewName] = useState("");
     const [newGenericName, setNewGenericName] = useState("");
+    const [newDosage, setNewDosage] = useState("");
     const [newBaseUnit, setNewBaseUnit] = useState("Tablet");
     const [errorMessage, setErrorMessage] = useState("");
 
@@ -56,7 +57,10 @@ export function Inventory() {
     const totalCount = inventoryPage?.metadata.totalCount ?? catalog.length;
 
     const normalizedCatalog = useMemo(
-        () => new Set(catalog.map(item => `${item.productDetails.trim().toLowerCase()}|${item.dosage.trim().toLowerCase()}`)),
+        () => new Set(catalog.map(item => {
+            const genericWithDosage = `${item.genericName} ${item.dosage ?? ""}`.trim().toLowerCase();
+            return `${item.productDetails.trim().toLowerCase()}|${genericWithDosage}`;
+        })),
         [catalog]
     );
 
@@ -71,10 +75,12 @@ export function Inventory() {
         e.preventDefault();
         const trimmedName = newName.trim();
         const trimmedGenericName = newGenericName.trim();
+        const trimmedDosage = newDosage.trim();
 
         if (!trimmedName) { setErrorMessage("Product name is required."); return; }
         if (!trimmedGenericName) { setErrorMessage("Generic name is required."); return; }
-        if (normalizedCatalog.has(`${trimmedName.toLowerCase()}|${trimmedGenericName.toLowerCase()}`)) {
+        const normalizedGeneric = `${trimmedGenericName} ${trimmedDosage}`.trim().toLowerCase();
+        if (normalizedCatalog.has(`${trimmedName.toLowerCase()}|${normalizedGeneric}`)) {
             setErrorMessage("This product already exists in the catalog."); return;
         }
 
@@ -82,6 +88,7 @@ export function Inventory() {
             await addProductMutation.mutateAsync({
                 name: trimmedName,
                 genericName: trimmedGenericName,
+                dosage: trimmedDosage || null,
                 baseUnit: newBaseUnit,
                 packageUnit: null,
                 conversionFactor: 1,
@@ -89,7 +96,7 @@ export function Inventory() {
                 requiresColdChain: false,
                 reorderLevel: 10,
             });
-            setNewName(""); setNewGenericName(""); setNewBaseUnit("Tablet");
+            setNewName(""); setNewGenericName(""); setNewDosage(""); setNewBaseUnit("Tablet");
             setErrorMessage(""); setShowAddProduct(false);
         } catch {
             setErrorMessage("Failed to add product. Please try again.");
@@ -177,7 +184,7 @@ export function Inventory() {
                         </div>
                         <button
                             type="button"
-                            onClick={() => { setShowAddProduct(false); setNewName(""); setNewGenericName(""); setErrorMessage(""); }}
+                            onClick={() => { setShowAddProduct(false); setNewName(""); setNewGenericName(""); setNewDosage(""); setErrorMessage(""); }}
                             className="text-slate-400 hover:text-slate-600 text-lg leading-none w-7 h-7 flex items-center justify-center rounded-full hover:bg-slate-100 transition-colors"
                         >
                             ×
@@ -198,7 +205,16 @@ export function Inventory() {
                             <input
                                 value={newGenericName}
                                 onChange={(e) => { setNewGenericName(e.target.value); if (errorMessage) setErrorMessage(""); }}
-                                placeholder="e.g. Paracetamol 500mg"
+                                placeholder="e.g. Paracetamol"
+                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                            />
+                        </div>
+                        <div className="w-full md:w-36">
+                            <label className="block text-xs font-medium text-slate-600 mb-1">Dosage</label>
+                            <input
+                                value={newDosage}
+                                onChange={(e) => { setNewDosage(e.target.value); if (errorMessage) setErrorMessage(""); }}
+                                placeholder="e.g. 500mg"
                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
                             />
                             {errorMessage && <p className="mt-1 text-xs text-red-500">{errorMessage}</p>}
@@ -223,7 +239,7 @@ export function Inventory() {
                             </button>
                             <button
                                 type="button"
-                                onClick={() => { setShowAddProduct(false); setNewName(""); setNewGenericName(""); setErrorMessage(""); }}
+                                onClick={() => { setShowAddProduct(false); setNewName(""); setNewGenericName(""); setNewDosage(""); setErrorMessage(""); }}
                                 className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
                             >
                                 Cancel

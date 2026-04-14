@@ -11,6 +11,26 @@ import { AddProductDrawer } from "../components/stockin/AddProductDrawer";
 import { DEFAULT_DATE } from "../components/stockin/types";
 import type { StockInBatchDraft, PendingBatch } from "../components/stockin/types";
 
+function splitGenericAndDosage(value: string): { genericName: string; dosage: string } {
+  const raw = value.trim();
+  const firstDigitIndex = raw.search(/\d/);
+
+  if (firstDigitIndex <= 0) {
+    return { genericName: raw.toLowerCase(), dosage: "" };
+  }
+
+  return {
+    genericName: raw.slice(0, firstDigitIndex).trim().toLowerCase(),
+    dosage: raw.slice(firstDigitIndex).trim().toLowerCase(),
+  };
+}
+
+function buildEnteredDosage(strengthValue: string, strengthUnit: string): string {
+  const value = strengthValue.trim();
+  if (!value) return "";
+  return `${value}${strengthUnit}`.toLowerCase();
+}
+
 export function StockIn() {
   const queryClient = useQueryClient();
 
@@ -118,11 +138,18 @@ export function StockIn() {
       return;
     }
 
-    const matchedProduct = productCatalog.find(
-      (p) =>
-        p.name.toLowerCase() === productName.trim().toLowerCase() &&
-        p.genericName.toLowerCase() === genericName.trim().toLowerCase()
-    );
+    const enteredName = productName.trim().toLowerCase();
+    const enteredGeneric = genericName.trim().toLowerCase();
+    const enteredDosage = buildEnteredDosage(strengthValue, strengthUnit);
+
+    const matchedProduct = productCatalog.find((p) => {
+      if (p.name.toLowerCase() !== enteredName) return false;
+
+      const parsed = splitGenericAndDosage(p.genericName);
+      if (parsed.genericName !== enteredGeneric) return false;
+
+      return enteredDosage ? parsed.dosage === enteredDosage : true;
+    });
 
     if (!matchedProduct) {
       setPendingBatch(buildPendingBatch());

@@ -35,7 +35,8 @@ export function Dispense() {
         if (!q) return catalog;
         return catalog.filter(p =>
             p.productDetails.toLowerCase().includes(q) ||
-            p.dosage.toLowerCase().includes(q) ||
+            p.genericName.toLowerCase().includes(q) ||
+            (p.dosage ?? "").toLowerCase().includes(q) ||
             p.batches.some(b => b.batchNumber.toLowerCase().includes(q))
         );
     }, [catalog, searchQuery]);
@@ -106,7 +107,7 @@ export function Dispense() {
 
             <div className="w-full max-w-2xl mx-auto mb-6 shrink-0">
                 <SearchBar
-                    placeholder="Search by medicine name, dosage, or batch..."
+                    placeholder="Search by medicine name, generic name, or batch..."
                     onSearch={setSearchQuery}
                 />
             </div>

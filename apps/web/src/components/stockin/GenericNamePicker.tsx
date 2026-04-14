@@ -9,24 +9,48 @@ type GenericNamePickerProps = {
   onAddNew: () => void;
 };
 
+function splitGenericAndDosage(value: string): { genericName: string; dosage: string } {
+  const raw = value.trim();
+  const firstDigitIndex = raw.search(/\d/);
+
+  if (firstDigitIndex <= 0) {
+    return { genericName: raw, dosage: "" };
+  }
+
+  return {
+    genericName: raw.slice(0, firstDigitIndex).trim(),
+    dosage: raw.slice(firstDigitIndex).trim(),
+  };
+}
+
+type GenericOption = {
+  genericName: string;
+  category?: string | null;
+};
+
 export function GenericNamePicker({ products, value, onChange, onAddNew }: GenericNamePickerProps) {
   const [search, setSearch] = useState(value);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { setSearch(value); }, [value]);
 
-  const uniqueGenerics = useMemo(() => {
+  const uniqueGenerics = useMemo<GenericOption[]>(() => {
     const q = search.trim().toLowerCase();
     const seen = new Set<string>();
+
     return products
+      .map((p) => ({
+        genericName: splitGenericAndDosage(p.genericName).genericName,
+        category: p.category,
+      }))
       .filter((p) =>
         !q ||
-        p.genericName.toLowerCase().includes(q) ||
-        p.name.toLowerCase().includes(q)
+        p.genericName.toLowerCase().includes(q)
       )
       .filter((p) => {
-        if (seen.has(p.genericName)) return false;
-        seen.add(p.genericName);
+        const key = p.genericName.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
         return true;
       });
   }, [products, search]);
