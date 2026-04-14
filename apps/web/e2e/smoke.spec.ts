@@ -8,5 +8,21 @@ test("dashboard page renders", async ({ page }) => {
 
 test("inventory route renders", async ({ page }) => {
   await page.goto("/inventory");
-  await expect(page.getByRole("heading", { name: "Inventory" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Inventory", level: 1, exact: true })).toBeVisible();
+});
+
+test("sidebar navigation works across core routes", async ({ page }) => {
+  await page.goto("/");
+
+  await page.getByRole("link", { name: "Inventory" }).click();
+  await expect(page).toHaveURL(/\/inventory$/);
+  await expect(page.getByRole("heading", { name: "Inventory", level: 1, exact: true })).toBeVisible();
+
+  await page.getByRole("link", { name: "Stock In" }).click();
+  await expect(page).toHaveURL(/\/stockin$/);
+  await expect(page.getByRole("heading", { name: "Stock inward", level: 1, exact: true })).toBeVisible();
+
+  await page.getByRole("link", { name: "Dispense" }).click();
+  await expect(page).toHaveURL(/\/dispense$/);
+  await expect(page.getByRole("heading", { name: "Dispense", level: 1, exact: true })).toBeVisible();
 });
