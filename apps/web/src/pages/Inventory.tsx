@@ -6,6 +6,8 @@ import { inventoryApi, type InventoryResponse } from "../api/inventory";
 import { productsApi } from "../api/products";
 import { transformInventory } from "../utils/transformInventory";
 import { SearchBar } from "../components/SearchBar";
+import { SortFilterChips } from "../components/SortFilterChips";
+import { applyDecorators, type SortFilter } from "../utils/catalogDecorators";
 import { BASE_UNITS } from "../components/stockin/types";
 
 export function Inventory() {
@@ -20,7 +22,6 @@ export function Inventory() {
             setSearchQuery(searchInput.trim());
             setCurrentPage(1);
         }, 350);
-
         return () => window.clearTimeout(timer);
     }, [searchInput]);
 
@@ -45,6 +46,22 @@ export function Inventory() {
         try { return transformInventory(rawInventory); } catch { return []; }
     }, [rawInventory]);
 
+    // ── Decorator pattern for sort/filter chips ───────────────────────────────
+    const [activeFilters, setActiveFilters] = useState<SortFilter[]>([]);
+
+    const toggleFilter = (filter: SortFilter) => {
+        setActiveFilters(prev =>
+            prev.includes(filter)
+                ? prev.filter(f => f !== filter)
+                : [...prev, filter]
+        );
+    };
+
+    const displayCatalog = useMemo(
+        () => applyDecorators(catalog, activeFilters),
+        [catalog, activeFilters]
+    );
+
     const [showAddProduct, setShowAddProduct] = useState(false);
     const [newName, setNewName] = useState("");
     const [newGenericName, setNewGenericName] = useState("");
@@ -64,7 +81,6 @@ export function Inventory() {
         [catalog]
     );
 
-    // Summary counts
     const stockCounts = useMemo(() => ({
         inStock: catalog.filter(p => p.status === "In Stock").length,
         lowStock: catalog.filter(p => p.status === "Low Stock").length,
@@ -170,11 +186,15 @@ export function Inventory() {
                 placeholder="Search by medicine name or generic name..."
                 onSearch={(q) => setSearchInput(q)}
             />
+
+            {/* Sort filter chips */}
+            <SortFilterChips activeFilters={activeFilters} onToggle={toggleFilter} />
+
             {isFetching && (
                 <p className="text-xs text-slate-400">Updating results...</p>
             )}
 
-            {/* Add product inline form */}
+            {/* Add product form */}
             {showAddProduct && (
                 <div className="bg-white border border-blue-100 rounded-2xl p-5 shadow-sm">
                     <div className="flex items-center justify-between mb-4">
@@ -250,7 +270,7 @@ export function Inventory() {
             )}
 
             {/* Table */}
-            <InventoryTable products={catalog} />
+            <InventoryTable products={displayCatalog} />
 
             {/* Pagination */}
             <div className="flex items-center justify-between gap-3 bg-white rounded-2xl border border-slate-200 px-5 py-3 text-sm text-slate-500 shadow-sm">
