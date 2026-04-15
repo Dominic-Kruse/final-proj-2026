@@ -1,26 +1,12 @@
 import { db } from "../db";
-import { inventoryBatches, products, stockTransactions } from "../db/schema";
+import { inventoryBatches, products } from "../db/schema";
 import { eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { Request, Response } from "express";
-
-// ── Types ──────────────────────────────────────────────────────────────────────
-interface BatchInput {
-  productId: number;
-  batchNumber: string;
-  expiryDate: string;       // "YYYY-MM-DD"
-  quantity: number;
-  unitCost: number;
-  sellingPrice: number;
-  inventoryLocation?: string;
-}
-
-interface StockInwardBody {
-  supplierName: string;
-  referenceNumber: string;
-  dateReceived: string;     // "YYYY-MM-DD"
-  batches: BatchInput[];
-  performedBy?: string;
-}
+import {
+  StockInCommand,
+  StockInValidationError,
+  type StockInwardPayload,
+} from "../commands/Stockincommands";
 
 // ── Shared error helper ────────────────────────────────────────────────────────
 function handleError(res: Response, error: unknown, message: string) {
@@ -69,12 +55,7 @@ export const inventoryController = {
       const productIds = pagedProducts.map((p) => p.id);
       if (productIds.length === 0) {
         res.status(200).json({
-          metadata: {
-            currentPage,
-            totalPages,
-            totalCount,
-            limit,
-          },
+          metadata: { currentPage, totalPages, totalCount, limit },
           data: [],
         });
         return;
@@ -116,12 +97,7 @@ export const inventoryController = {
       }));
 
       res.status(200).json({
-        metadata: {
-          currentPage,
-          totalPages,
-          totalCount,
-          limit,
-        },
+        metadata: { currentPage, totalPages, totalCount, limit },
         data,
       });
     } catch (error) {
@@ -156,108 +132,21 @@ export const inventoryController = {
   },
 
   // POST /api/inventory/stock-inward
-  // Saves the entire StockIn form in one atomic transaction:
-  //   1. Validates all batch productIds exist
-  //   2. Inserts all inventory_batches rows
-  //   3. Logs a 'restock' stock_transaction for each batch
   async stockInward(req: Request, res: Response) {
     try {
-      const {
-        supplierName,
-        referenceNumber,
-        dateReceived,
-        batches,
-        performedBy,
-      } = req.body as StockInwardBody;
+      const payload = req.body as StockInwardPayload;
 
-      // ── Validate header ──────────────────────────────────────────────────────
-      if (!supplierName?.trim() || !referenceNumber?.trim() || !dateReceived) {
-        res.status(400).json({
-          error: "supplierName, referenceNumber, and dateReceived are required",
-        });
-        return;
-      }
+      // ── Delegate all logic to the command ─────────────────────────────────
+      const command = new StockInCommand(payload);
+      const result = await command.execute();
 
-      if (!Array.isArray(batches) || batches.length === 0) {
-        res.status(400).json({ error: "At least one batch is required" });
-        return;
-      }
-
-      // ── Validate each batch ──────────────────────────────────────────────────
-      for (const [i, b] of batches.entries()) {
-        const label = `batches[${i}]`;
-        if (!Number.isFinite(b.productId) || b.productId <= 0)
-          return void res.status(400).json({ error: `${label}: invalid productId` });
-        if (!b.batchNumber?.trim())
-          return void res.status(400).json({ error: `${label}: batchNumber is required` });
-        if (!b.expiryDate)
-          return void res.status(400).json({ error: `${label}: expiryDate is required` });
-        if (!Number.isFinite(b.quantity) || b.quantity <= 0)
-          return void res.status(400).json({ error: `${label}: quantity must be a positive number` });
-        if (!Number.isFinite(b.unitCost) || b.unitCost <= 0)
-          return void res.status(400).json({ error: `${label}: unitCost must be positive` });
-        if (!Number.isFinite(b.sellingPrice) || b.sellingPrice <= 0)
-          return void res.status(400).json({ error: `${label}: sellingPrice must be positive` });
-      }
-
-      // ── Confirm all referenced products exist ────────────────────────────────
-      const uniqueProductIds = [...new Set(batches.map((b) => b.productId))];
-    const foundProducts = await db
-        .select({ id: products.id })
-        .from(products)
-        .where(inArray(products.id, uniqueProductIds));
-
-        if (foundProducts.length !== uniqueProductIds.length) {
-        const foundIds = foundProducts.map((p) => p.id);
-        const missing = uniqueProductIds.filter((id) => !foundIds.includes(id));
-        res.status(400).json({ error: `Products not found: ${missing.join(", ")}` });
-        return;
-        }
-
-      // ── Run everything in one DB transaction ─────────────────────────────────
-      const savedBatches = await db.transaction(async (tx) => {
-        const results = [];
-
-        for (const b of batches) {
-          // Insert the batch
-          const [inserted] = await tx
-            .insert(inventoryBatches)
-            .values({
-              productId: b.productId,
-              batchNumber: b.batchNumber.trim(),
-              supplierName: supplierName.trim(),       // new column
-              referenceNumber: referenceNumber.trim(), // new column
-              inventoryLocation: b.inventoryLocation ?? "Main Shelf",
-              expiryDate: b.expiryDate,
-              receivedDate: dateReceived,
-              initialQuantity: b.quantity,
-              currentQuantity: b.quantity,
-              costPrice: b.unitCost.toFixed(2),
-              sellingPrice: b.sellingPrice.toFixed(2),
-              status: "available",
-            })
-            .returning();
-
-          // Log a restock transaction for the audit trail
-          await tx.insert(stockTransactions).values({
-            batchId: inserted.id,
-            type: "restock",
-            quantityChanged: b.quantity,
-            reason: `Stock inward from ${supplierName.trim()} — ref: ${referenceNumber.trim()}`,
-            performedBy: performedBy ?? "system",
-          });
-
-          results.push(inserted);
-        }
-
-        return results;
-      });
-
-      res.status(201).json({
-        message: `Stock inward saved. ${savedBatches.length} batch(es) added.`,
-        batches: savedBatches,
-      });
+      res.status(201).json(result);
     } catch (error) {
+      // ── Translate typed errors into HTTP responses ─────────────────────────
+      if (error instanceof StockInValidationError) {
+        res.status(400).json({ error: error.message });
+        return;
+      }
       handleError(res, error, "Failed to save stock inward");
     }
   },
