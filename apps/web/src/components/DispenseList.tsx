@@ -1,11 +1,8 @@
-// import { Fragment } from "react";
-
-// Define the shape of an item in the cart
 export type DispenseReason = "Sale" | "Expired" | "Damaged" | "Sample";
 
 export interface DispenseItem {
   productId: number;
-  batchId: number;       
+  batchId: number;
   name: string;
   batchNumber: string;
   quantity: number;
@@ -31,7 +28,7 @@ export function DispenseList({
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
-    <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col h-full">
+    <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
       <div className="mb-4 flex justify-between items-end border-b border-slate-100 pb-3">
         <h2 className="text-lg font-bold text-slate-800">Dispense List</h2>
         <span className="text-sm font-medium text-slate-500">
@@ -39,11 +36,14 @@ export function DispenseList({
         </span>
       </div>
 
-      {/* Scrollable list area */}
-      <div className="flex-1 overflow-y-auto space-y-4 min-h-75 max-h-125 pr-2">
+      {/* Grows naturally with items; caps at ~5 cards then scrolls */}
+      <div
+        className="overflow-y-auto space-y-4 pr-2 transition-all duration-200"
+        style={{ maxHeight: items.length === 0 ? "6rem" : "min(500px, 80vh)" }}
+      >
         {items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-slate-400">
-            <p>No items selected.</p>
+          <div className="flex flex-col items-center justify-center h-16 text-slate-400">
+            <p className="text-sm">No items selected.</p>
             <p className="text-xs mt-1">Add batches from the inventory table.</p>
           </div>
         ) : (
@@ -83,7 +83,6 @@ export function DispenseList({
                     value={item.quantity}
                     onChange={(e) => {
                       const val = parseInt(e.target.value) || 1;
-                      // Prevent exceeding available batch stock
                       const safeVal = Math.min(Math.max(1, val), item.maxQuantity);
                       onUpdateQuantity(item.batchNumber, safeVal);
                     }}
@@ -124,7 +123,7 @@ export function DispenseList({
         <button
           onClick={onConfirm}
           disabled={items.length === 0}
-          className="w-full bg-slate-900 text-white py-3 rounded-xl font-semibold hover:bg-slate-800 transition-colors disabled:bg-slate-300 disabled:cursor-not-allowed"
+          className="w-full bg-slate-900 text-black py-3 rounded-xl font-semibold hover:bg-slate-800 transition-colors disabled:bg-slate-300 disabled:cursor-not-allowed"
         >
           Confirm & Update Stock
         </button>

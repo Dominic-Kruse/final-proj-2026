@@ -58,7 +58,7 @@ export function SummaryPanel({
             type="button"
             onClick={onSave}
             disabled={isPending}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 shadow-sm"
+            className="px-4 py-2 bg-blue-600 text-slate-700 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 shadow-sm"
           >
             {isPending ? "Saving..." : "Save stock inward"}
           </button>

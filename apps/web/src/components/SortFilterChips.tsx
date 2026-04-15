@@ -15,6 +15,12 @@ const FILTERS: {
     dotClass: "bg-white",
   },
   {
+    key: "in-stock",
+    label: "In stock",
+    activeClass: "bg-emerald-500 text-white border-emerald-500",
+    dotClass: "bg-white",
+  },
+  {
     key: "low-stock",
     label: "Low stock",
     activeClass: "bg-amber-500 text-white border-amber-500",

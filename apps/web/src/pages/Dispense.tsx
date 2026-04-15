@@ -54,12 +54,11 @@ export function Dispense() {
     const toggleFilter = (filter: SortFilter) => {
         setActiveFilters(prev =>
             prev.includes(filter)
-                ? prev.filter(f => f !== filter)   // remove decorator
-                : [...prev, filter]                 // append decorator
+                ? prev.filter(f => f !== filter)
+                : [...prev, filter]
         );
     };
 
-    // Apply decorators in order — each wraps the result of the previous
     const displayCatalog = useMemo(
         () => applyDecorators(catalog, activeFilters),
         [catalog, activeFilters]
@@ -184,7 +183,7 @@ export function Dispense() {
             )}
 
             {/* Main layout: table + dispense cart */}
-            <main className="w-full flex flex-col lg:flex-row gap-6">
+            <main className="w-full flex flex-col lg:flex-row gap-6 items-start">
                 <section className="flex-1 flex flex-col min-h-0 gap-4">
                     <div className="flex-1 min-h-0 rounded-3xl overflow-hidden border border-slate-200/50 bg-white shadow-sm">
                         <InventoryTable
@@ -194,7 +193,7 @@ export function Dispense() {
                         />
                     </div>
 
-                    {/* Pagination — identical to Inventory page */}
+                    {/* Pagination */}
                     <div className="flex items-center justify-between gap-3 bg-white rounded-2xl border border-slate-200 px-5 py-3 text-sm text-slate-500 shadow-sm">
                         <span className="text-xs">
                             Showing{" "}
@@ -243,8 +242,7 @@ export function Dispense() {
                         </div>
                     </div>
                 </section>
-
-                <aside className="w-full lg:w-96 flex flex-col min-h-0 shrink-0">
+                <aside className="w-full lg:w-96 shrink-0 lg:sticky lg:top-6">
                     <DispenseList
                         items={dispenseItems}
                         onUpdateQuantity={handleUpdateQuantity}

@@ -6,7 +6,8 @@ export type SortFilter =
   | "alphabetical"
   | "low-stock"
   | "near-expiry"
-  | "expired";
+  | "expired"
+  | "in-stock";
 
 // A decorator is just a function that takes a list and returns a sorted/filtered list
 type CatalogDecorator = (items: ProductCatalogItem[]) => ProductCatalogItem[];
@@ -57,6 +58,13 @@ const expiredDecorator: CatalogDecorator = (items) =>
     return 0;
   });
 
+// Floats "In Stock" items to the top, pushing Low Stock and Out of Stock down
+const inStockDecorator: CatalogDecorator = (items) =>
+  [...items].sort((a, b) => {
+    const priority = { "In Stock": 0, "Low Stock": 1, "Out of Stock": 2 };
+    return priority[a.status] - priority[b.status];
+  });
+
 // ── Registry: maps each filter key to its decorator ──────────────────────────
 
 const DECORATOR_MAP: Record<SortFilter, CatalogDecorator> = {
@@ -64,6 +72,7 @@ const DECORATOR_MAP: Record<SortFilter, CatalogDecorator> = {
   "low-stock": lowStockDecorator,
   "near-expiry": nearExpiryDecorator,
   expired: expiredDecorator,
+  "in-stock": inStockDecorator,
 };
 
 // ── Core: compose active decorators in order and apply to catalog ─────────────
