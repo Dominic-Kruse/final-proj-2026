@@ -129,7 +129,12 @@ test("inventory user can add a new product", async ({ page }) => {
   await page.getByPlaceholder("e.g. Paracetamol").fill("E2EGeneric");
   await page.getByPlaceholder("e.g. 500mg").fill("250mg");
 
+  const createResponsePromise = page.waitForResponse((response) => {
+    return response.request().method() === "POST" && new URL(response.url()).pathname.endsWith("/products");
+  });
   await page.getByRole("button", { name: "Save" }).click();
+  const createResponse = await createResponsePromise;
+  expect(createResponse.ok()).toBeTruthy();
 
   await expect(page.getByText("Add new product")).not.toBeVisible();
 

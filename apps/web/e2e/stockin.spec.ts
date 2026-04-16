@@ -1,5 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 async function gotoStockIn(page: Page) {
   await page.goto("/stockin");
   await expect(page.getByText("Inward header")).toBeVisible();
@@ -13,14 +17,19 @@ async function fillHeader(page: Page, supplier = "MediCore Pharma", reference = 
 async function selectGeneric(page: Page, query: string) {
   const input = page.getByPlaceholder("Search generic name...");
   await input.fill(query);
-  const suggestion = page.locator("li").filter({ hasText: new RegExp(query, "i") }).first();
-  if (await suggestion.count()) {
+  const suggestion = input
+    .locator('xpath=following-sibling::div//li')
+    .filter({ hasText: new RegExp(escapeRegExp(query), "i") })
+    .first();
+
+  try {
+    await expect(suggestion).toBeVisible({ timeout: 1500 });
     await suggestion.click();
     await expect(input).toHaveValue(new RegExp(query, "i"));
     return;
+  } catch {
+    await input.press("Enter");
   }
-
-  await input.press("Enter");
 }
 
 async function fillMatchingBatch(page: Page, overrides?: Partial<Record<string, string>>) {
@@ -43,6 +52,42 @@ async function fillMatchingBatch(page: Page, overrides?: Partial<Record<string, 
 async function addDraftBatch(page: Page) {
   await page.getByRole("button", { name: "Add to draft list" }).click();
 }
+
+test("stock in can add a valid batch to the draft list", async ({ page }) => {
+  await gotoStockIn(page);
+  await fillHeader(page);
+  await fillMatchingBatch(page);
+
+  await addDraftBatch(page);
+
+  await expect(page.getByText("1 batch", { exact: true })).toBeVisible();
+  await expect(page.locator("tbody").getByText("Biogesic", { exact: true })).toBeVisible();
+});
+
+test("stock in saves a drafted batch through the backend", async ({ page }) => {
+  await gotoStockIn(page);
+  await fillHeader(page, "MediCore Pharma", `INV-${Date.now()}`);
+  await fillMatchingBatch(page, {
+    productName: "Biogesic",
+    genericName: "paracetamol",
+    strengthValue: "500",
+    batchNumber: `E2E-${Date.now()}`,
+    expiryDate: "2027-04-16",
+    inventoryLocation: "Shelf A-1",
+  });
+
+  await addDraftBatch(page);
+
+  const saveResponsePromise = page.waitForResponse((response) => {
+    return response.request().method() === "POST" && new URL(response.url()).pathname.endsWith("/inventory/stock-inward");
+  });
+  await page.getByRole("button", { name: "Save stock inward" }).nth(1).click();
+  const saveResponse = await saveResponsePromise;
+  expect(saveResponse.ok()).toBeTruthy();
+
+  await expect(page.getByText(/Saved 1 batch\(es\) from MediCore Pharma/i)).toBeVisible();
+  await expect(page.getByText("0 batches drafted")).toBeVisible();
+});
 
 test("stock in requires header and required fields", async ({ page }) => {
   await gotoStockIn(page);
