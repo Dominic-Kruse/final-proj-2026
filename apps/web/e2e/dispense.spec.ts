@@ -22,8 +22,6 @@ async function searchDispense(page: Page, query: string) {
     "Search by medicine name, generic name, or batch..."
   );
   await input.fill(query);
-  // Allow the client-side filter to settle
-  await page.waitForTimeout(200);
 }
 
 /**
@@ -120,13 +118,22 @@ test.describe("Dispense page", () => {
 
     await searchDispense(page, "amoxicillin");
 
+    await expect
+      .poll(async () => {
+        const total = await rows.count();
+        if (total === 0) return false;
+
+        for (let i = 0; i < total; i++) {
+          const text = await rows.nth(i).innerText();
+          if (!text.toLowerCase().includes("amoxicillin")) return false;
+        }
+
+        return true;
+      }, { timeout: 10000 })
+      .toBe(true);
+
     const totalAfter = await rows.count();
     expect(totalAfter).toBeLessThanOrEqual(totalBefore);
-
-    for (let i = 0; i < totalAfter; i++) {
-      const text = await rows.nth(i).innerText();
-      expect(text.toLowerCase()).toContain("amoxicillin");
-    }
   });
 
   test("shows all rows when search is cleared", async ({ page }) => {
@@ -137,10 +144,14 @@ test.describe("Dispense page", () => {
     const totalBefore = await rows.count();
 
     await searchDispense(page, "xyz_no_match");
-    // Confirm the filter actually reduced results before clearing
-    await expect(rows).toHaveCount(0);
+    // Confirm the filter actually reduced results before clearing.
+    await expect.poll(async () => rows.count(), { timeout: 10000 }).toBe(0);
 
     await searchDispense(page, ""); // clear
+
+    await expect
+      .poll(async () => rows.count(), { timeout: 10000 })
+      .toBe(totalBefore);
 
     const totalAfter = await rows.count();
     expect(totalAfter).toBe(totalBefore);
@@ -153,6 +164,8 @@ test.describe("Dispense page", () => {
     await rows.first().waitFor({ state: "visible" });
 
     await searchDispense(page, "zzz_definitely_not_a_medicine_9999");
+
+    await expect.poll(async () => rows.count(), { timeout: 10000 }).toBe(0);
 
     const count = await rows.count();
     if (count === 0) {
