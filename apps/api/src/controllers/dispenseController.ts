@@ -4,6 +4,7 @@ import {
   StockOutValidationError,
   type StockOutwardPayload,
 } from "../commands/StockOutCommand";
+import { getAuditActorContext } from "../services/auditContext";
 
 // ── Shared error helper ────────────────────────────────────────────────────────
 function handleError(res: Response, error: unknown, message: string) {
@@ -16,7 +17,10 @@ export const dispenseController = {
   // POST /api/dispense (or whatever your route is)
   async stockOutward(req: Request, res: Response) {
     try {
-      const payload = req.body as StockOutwardPayload;
+      const payload: StockOutwardPayload = {
+        ...(req.body as StockOutwardPayload),
+        actorContext: getAuditActorContext(req),
+      };
 
       // ── Delegate all logic to the command ─────────────────────────────────
       const command = new StockOutCommand(payload);

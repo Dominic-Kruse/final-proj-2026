@@ -83,7 +83,7 @@ export const Sidebar = () => {
           }
         >
           <span className="w-5 h-5 bg-white/20 rounded-md"></span> {/* Icon Placeholder */}
-          Customer
+          Audit Logs
         </NavLink>
       </nav>
     </aside>

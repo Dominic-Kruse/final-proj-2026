@@ -2,18 +2,20 @@ import request from "supertest";
 import express from "express";
 import productsRoutes from "../routes/productsRoutes"
 import { db } from "../db"
-import {inventoryBatches, products, stockTransactions} from "../db/schema"
+import { auditLogs, inventoryBatches, products, stockTransactions } from "../db/schema"
+import { and, eq } from "drizzle-orm"
 
 const app = express();
 app.use(express.json());
 app.use("/products", productsRoutes);
 
 describe("Products API", () => {
-    afterAll(async () => {
+  afterAll(async () => {
+    await db.delete(auditLogs)
     await db.delete(stockTransactions)
     await db.delete(inventoryBatches)
-        await db.delete(products)
-    })
+    await db.delete(products)
+  })
 
   it("GET /products should return 200 with metadata and data array", async () => {
     const response = await request(app).get("/products");
@@ -66,6 +68,20 @@ describe("Products API", () => {
     expect(response.status).toBe(201);
     expect(response.body.name).toBe("Test Product");
     expect(response.body.sku).toBe("TESTSKU123");
+
+    const [audit] = await db
+      .select()
+      .from(auditLogs)
+      .where(
+        and(
+          eq(auditLogs.entityType, "product"),
+          eq(auditLogs.entityId, response.body.id),
+          eq(auditLogs.action, "create"),
+        ),
+      )
+      .limit(1);
+
+    expect(audit).toBeDefined();
   });
 
   it("PUT /products/:id should update a product", async () => {
@@ -93,6 +109,22 @@ describe("Products API", () => {
     expect(updateRes.status).toBe(200);
     expect(updateRes.body.name).toBe("Updated Name");
     expect(updateRes.body.genericName).toBe("Generic Updated");
+
+    const [audit] = await db
+      .select()
+      .from(auditLogs)
+      .where(
+        and(
+          eq(auditLogs.entityType, "product"),
+          eq(auditLogs.entityId, productId),
+          eq(auditLogs.action, "update"),
+        ),
+      )
+      .limit(1);
+
+    expect(audit).toBeDefined();
+    expect(audit?.oldValues).toContain("Original Name");
+    expect(audit?.newValues).toContain("Updated Name");
   });
   
   it("DELETE /products/:id should delete a product", async () => {
@@ -115,6 +147,22 @@ describe("Products API", () => {
 
     expect(deleteRes.status).toBe(200);
     expect(deleteRes.body.message).toBe("Product deleted successfully");
+
+    const [audit] = await db
+      .select()
+      .from(auditLogs)
+      .where(
+        and(
+          eq(auditLogs.entityType, "product"),
+          eq(auditLogs.entityId, productId),
+          eq(auditLogs.action, "delete"),
+        ),
+      )
+      .limit(1);
+
+    expect(audit).toBeDefined();
+    expect(audit?.oldValues).toContain("To Be Deleted");
+    expect(audit?.newValues).toBeNull();
 
     const getRes = await request(app).get(`/products/${productId}`);
     expect(getRes.status).toBe(404);

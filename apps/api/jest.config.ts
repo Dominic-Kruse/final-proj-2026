@@ -8,6 +8,7 @@ const config: Config = {
   clearMocks: true,
   roots: ["<rootDir>/src"],
   testMatch: ["**/__tests__/**/*.test.ts"],
+  globalSetup: "./src/__tests__/setup.ts",
   globalTeardown: "./src/__tests__/teardown.ts",
   testPathIgnorePatterns: ["/node_modules/", "/dist/", "teardown.ts"],
   moduleNameMapper: {

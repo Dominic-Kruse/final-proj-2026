@@ -74,3 +74,18 @@ export const stockTransactions = pgTable('stock_transactions', {
   performedBy: varchar('performed_by'), // User/Employee ID
   createdAt: timestamp('created_at').defaultNow(),
 });
+
+// 4. AUDIT LOGS
+// General audit events across product and inventory mutations
+export const auditLogs = pgTable('audit_logs', {
+  id: serial('id').primaryKey(),
+  action: varchar('action', { length: 50 }).notNull(),
+  entityType: varchar('entity_type', { length: 100 }).notNull(),
+  entityId: integer('entity_id').notNull(),
+  performedBy: varchar('performed_by', { length: 255 }),
+  oldValues: text('old_values'),
+  newValues: text('new_values'),
+  ipAddress: varchar('ip_address', { length: 100 }),
+  userAgent: text('user_agent'),
+  createdAt: timestamp('created_at').defaultNow(),
+});

@@ -3,7 +3,8 @@ import express from "express";
 import inventoryRoutes from "../routes/inventoryRoutes";
 import productsRoutes from "../routes/productsRoutes";
 import { db } from "../db";
-import { inventoryBatches, products, stockTransactions } from "../db/schema";
+import { auditLogs, inventoryBatches, products, stockTransactions } from "../db/schema";
+import { and, eq } from "drizzle-orm";
 
 const app = express();
 app.use(express.json());
@@ -47,6 +48,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await db.delete(auditLogs);
   await db.delete(stockTransactions);
   await db.delete(inventoryBatches);
   await db.delete(products);
@@ -110,6 +112,21 @@ describe("POST /inventory/stock-inward", () => {
     expect(res.body.batches).toHaveLength(1);
     expect(res.body.batches[0].productId).toBe(seededProductId);
     expect(res.body.batches[0].currentQuantity).toBe(100);
+
+    const [audit] = await db
+      .select()
+      .from(auditLogs)
+      .where(
+        and(
+          eq(auditLogs.entityType, "inventory_batch"),
+          eq(auditLogs.entityId, res.body.batches[0].id),
+          eq(auditLogs.action, "stock_inward"),
+        ),
+      )
+      .limit(1);
+
+    expect(audit).toBeDefined();
+    expect(audit?.performedBy).toBe("jest");
   });
 
   it("saves multiple batches in one request", async () => {

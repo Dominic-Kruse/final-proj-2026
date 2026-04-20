@@ -7,6 +7,7 @@ import {
   StockInValidationError,
   type StockInwardPayload,
 } from "../commands/StockInCommands";
+import { getAuditActorContext } from "../services/auditContext";
 
 // ── Shared error helper ────────────────────────────────────────────────────────
 function handleError(res: Response, error: unknown, message: string) {
@@ -134,7 +135,10 @@ export const inventoryController = {
   // POST /api/inventory/stock-inward
   async stockInward(req: Request, res: Response) {
     try {
-      const payload = req.body as StockInwardPayload;
+      const payload: StockInwardPayload = {
+        ...(req.body as StockInwardPayload),
+        actorContext: getAuditActorContext(req),
+      };
 
       // ── Delegate all logic to the command ─────────────────────────────────
       const command = new StockInCommand(payload);

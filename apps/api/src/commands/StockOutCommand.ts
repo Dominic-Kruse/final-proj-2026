@@ -1,6 +1,7 @@
 import { db } from "../db";
 import { inventoryBatches, stockTransactions } from "../db/schema";
 import { eq } from "drizzle-orm";
+import { type AuditActorContext, logAuditEvent } from "../services/auditService";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 export interface DispenseItem {
@@ -12,6 +13,7 @@ export interface DispenseItem {
 export interface StockOutwardPayload {
   items: DispenseItem[];
   performedBy?: string;
+  actorContext?: AuditActorContext;
 }
 
 export interface StockOutwardResult {
@@ -66,7 +68,7 @@ export class StockOutCommand {
 
   // ── Step 2: check stock levels + update batches + log transactions ───────────
   private async runTransaction(): Promise<void> {
-    const { items, performedBy } = this.payload;
+    const { items, performedBy, actorContext } = this.payload;
 
     await db.transaction(async (tx) => {
       for (const item of items) {
@@ -98,6 +100,21 @@ export class StockOutCommand {
           quantityChanged: -item.quantity,
           reason: item.reason,
           performedBy: performedBy ?? "Administrator",
+        });
+
+        await logAuditEvent(tx, {
+          action: "stock_outward",
+          entityType: "inventory_batch",
+          entityId: item.batchId,
+          oldValues: {
+            previousQuantity: batch.currentQuantity,
+          },
+          newValues: {
+            newQuantity: batch.currentQuantity - item.quantity,
+            deductedQuantity: item.quantity,
+            reason: item.reason,
+          },
+          context: actorContext ?? { performedBy: performedBy ?? "Administrator" },
         });
       }
     });

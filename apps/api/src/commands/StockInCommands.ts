@@ -1,6 +1,7 @@
 import { db } from "../db";
 import { inventoryBatches, products, stockTransactions } from "../db/schema";
 import { inArray } from "drizzle-orm";
+import { type AuditActorContext, logAuditEvent } from "../services/auditService";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 export interface BatchInput {
@@ -19,6 +20,7 @@ export interface StockInwardPayload {
   dateReceived: string;     // "YYYY-MM-DD"
   batches: BatchInput[];
   performedBy?: string;
+  actorContext?: AuditActorContext;
 }
 
 export interface StockInwardResult {
@@ -111,7 +113,7 @@ export class StockInCommand {
 
   // ── Step 4: insert batches + audit log in one atomic transaction ──────────────
   private async runTransaction() {
-    const { supplierName, referenceNumber, dateReceived, batches, performedBy } =
+    const { supplierName, referenceNumber, dateReceived, batches, performedBy, actorContext } =
       this.payload;
 
     return db.transaction(async (tx) => {
@@ -142,6 +144,21 @@ export class StockInCommand {
           quantityChanged: b.quantity,
           reason: `Stock inward from ${supplierName.trim()} — ref: ${referenceNumber.trim()}`,
           performedBy: performedBy ?? "system",
+        });
+
+        await logAuditEvent(tx, {
+          action: "stock_inward",
+          entityType: "inventory_batch",
+          entityId: inserted.id,
+          newValues: {
+            productId: inserted.productId,
+            batchNumber: inserted.batchNumber,
+            quantity: b.quantity,
+            supplierName: supplierName.trim(),
+            referenceNumber: referenceNumber.trim(),
+            receivedDate: dateReceived,
+          },
+          context: actorContext ?? { performedBy: performedBy ?? "system" },
         });
 
         results.push(inserted);

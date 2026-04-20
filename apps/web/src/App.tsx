@@ -4,6 +4,7 @@ import { Dashboard } from "./pages/Dashboard";
 import { Inventory } from "./pages/Inventory";
 import { StockIn } from "./pages/StockIn";
 import { Dispense } from "./pages/Dispense";
+import { AuditLogs } from "./pages/AuditLogs";
 
 export default function App() {
   return (
@@ -14,7 +15,7 @@ export default function App() {
           <Route path="inventory" element={<Inventory />} />
           <Route path="stockin" element={<StockIn />}/>
           <Route path="dispense" element={<Dispense />}/>
-          <Route path="customer" element={<div>Customer Page</div>} />
+          <Route path="customer" element={<AuditLogs />} />
         </Route>
       </Routes>
     </BrowserRouter>

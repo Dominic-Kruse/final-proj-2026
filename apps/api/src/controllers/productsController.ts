@@ -2,6 +2,8 @@ import { db } from "../db";
 import { products } from "../db/schema";
 import { eq, ilike, or, sql } from "drizzle-orm";
 import { Request, Response } from "express";
+import { getAuditActorContext } from "../services/auditContext";
+import { logAuditEvent } from "../services/auditService";
 
 // ── Shared error helper ────────────────────────────────────────────────────────
 function handleError(res: Response, error: unknown, message: string) {
@@ -102,6 +104,7 @@ export const productsController = {
 
   async addProduct(req: Request, res: Response) {
     try {
+      const actorContext = getAuditActorContext(req);
       const {
         sku, name, genericName, description,
         category, form, baseUnit, packageUnit,
@@ -114,18 +117,30 @@ export const productsController = {
         return;
       }
 
-      const [newProduct] = await db
-        .insert(products)
-        .values({
-          sku, name: name.trim(), genericName: genericName.trim(),
-          description, category, form,
-          baseUnit: baseUnit.trim(), packageUnit,
-          conversionFactor: conversionFactor ?? 1,
-          isPrescriptionRequired: isPrescriptionRequired ?? false,
-          requiresColdChain: requiresColdChain ?? false,
-          reorderLevel: reorderLevel ?? 10,
-        })
-        .returning();
+      const [newProduct] = await db.transaction(async (tx) => {
+        const [created] = await tx
+          .insert(products)
+          .values({
+            sku, name: name.trim(), genericName: genericName.trim(),
+            description, category, form,
+            baseUnit: baseUnit.trim(), packageUnit,
+            conversionFactor: conversionFactor ?? 1,
+            isPrescriptionRequired: isPrescriptionRequired ?? false,
+            requiresColdChain: requiresColdChain ?? false,
+            reorderLevel: reorderLevel ?? 10,
+          })
+          .returning();
+
+        await logAuditEvent(tx, {
+          action: "create",
+          entityType: "product",
+          entityId: created.id,
+          newValues: created,
+          context: actorContext,
+        });
+
+        return [created];
+      });
 
       res.status(201).json(newProduct);
     } catch (error) {
@@ -135,6 +150,7 @@ export const productsController = {
 
   async updateProduct(req: Request, res: Response) {
     try {
+      const actorContext = getAuditActorContext(req);
       const id = Number(req.params.id);
       if (!Number.isFinite(id)) {
         res.status(400).json({ error: "Invalid product ID" });
@@ -148,17 +164,40 @@ export const productsController = {
         requiresColdChain, reorderLevel,
       } = req.body;
 
-      const [updated] = await db
-        .update(products)
-        .set({
-          sku, name, genericName, description,
-          category, form, baseUnit, packageUnit,
-          conversionFactor, isPrescriptionRequired,
-          requiresColdChain, reorderLevel,
-          updatedAt: new Date(),
-        })
-        .where(eq(products.id, id))
-        .returning();
+      const [updated] = await db.transaction(async (tx) => {
+        const [existing] = await tx
+          .select()
+          .from(products)
+          .where(eq(products.id, id))
+          .limit(1);
+
+        if (!existing) {
+          return [undefined];
+        }
+
+        const [saved] = await tx
+          .update(products)
+          .set({
+            sku, name, genericName, description,
+            category, form, baseUnit, packageUnit,
+            conversionFactor, isPrescriptionRequired,
+            requiresColdChain, reorderLevel,
+            updatedAt: new Date(),
+          })
+          .where(eq(products.id, id))
+          .returning();
+
+        await logAuditEvent(tx, {
+          action: "update",
+          entityType: "product",
+          entityId: id,
+          oldValues: existing,
+          newValues: saved,
+          context: actorContext,
+        });
+
+        return [saved];
+      });
 
       if (!updated) {
         res.status(404).json({ error: "Product not found" });
@@ -173,16 +212,39 @@ export const productsController = {
 
   async deleteProduct(req: Request, res: Response) {
     try {
+      const actorContext = getAuditActorContext(req);
       const id = Number(req.params.id);
       if (!Number.isFinite(id)) {
         res.status(400).json({ error: "Invalid product ID" });
         return;
       }
 
-      const [deleted] = await db
-        .delete(products)
-        .where(eq(products.id, id))
-        .returning();
+      const [deleted] = await db.transaction(async (tx) => {
+        const [existing] = await tx
+          .select()
+          .from(products)
+          .where(eq(products.id, id))
+          .limit(1);
+
+        if (!existing) {
+          return [undefined];
+        }
+
+        const [removed] = await tx
+          .delete(products)
+          .where(eq(products.id, id))
+          .returning();
+
+        await logAuditEvent(tx, {
+          action: "delete",
+          entityType: "product",
+          entityId: id,
+          oldValues: existing,
+          context: actorContext,
+        });
+
+        return [removed];
+      });
 
       if (!deleted) {
         res.status(404).json({ error: "Product not found" });
