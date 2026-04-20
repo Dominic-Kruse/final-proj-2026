@@ -1,50 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { InventoryTable } from "../components/InventoryTable";
-import { inventoryApi, type InventoryResponse } from "../api/inventory";
 import { productsApi } from "../api/products";
-import { transformInventory } from "../utils/transformInventory";
 import { SearchBar } from "../components/SearchBar";
 import { SortFilterChips } from "../components/SortFilterChips";
-import { applyDecorators, type SortFilter } from "../utils/catalogDecorators";
+import { type SortFilter } from "../utils/catalogDecorators";
 import { BASE_UNITS } from "../components/stockin/types";
+import { usePaginatedCatalog } from "../hooks/usePaginatedCatalog";
 
 export function Inventory() {
     const queryClient = useQueryClient();
-    const pageSize = 20;
     const [searchInput, setSearchInput] = useState("");
     const [searchQuery, setSearchQuery] = useState("");
-    const [currentPage, setCurrentPage] = useState(1);
-
-    useEffect(() => {
-        const timer = window.setTimeout(() => {
-            setSearchQuery(searchInput.trim());
-            setCurrentPage(1);
-        }, 350);
-        return () => window.clearTimeout(timer);
-    }, [searchInput]);
-
-    const { data: inventoryPage, isLoading, isFetching, isError } = useQuery<InventoryResponse>({
-        queryKey: ["inventory", currentPage, pageSize, searchQuery],
-        queryFn: () => inventoryApi.getPage({
-            page: currentPage,
-            limit: pageSize,
-            search: searchQuery || undefined,
-        }),
-        placeholderData: (previousData) => previousData,
-    });
-
-    const rawInventory = inventoryPage?.data ?? [];
-
-    const addProductMutation = useMutation({
-        mutationFn: productsApi.create,
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: ["inventory"] }),
-    });
-
-    const catalog = useMemo(() => {
-        try { return transformInventory(rawInventory); } catch { return []; }
-    }, [rawInventory]);
 
     // ── Decorator pattern for sort/filter chips ───────────────────────────────
     const [activeFilters, setActiveFilters] = useState<SortFilter[]>([]);
@@ -57,10 +25,31 @@ export function Inventory() {
         );
     };
 
-    const displayCatalog = useMemo(
-        () => applyDecorators(catalog, activeFilters),
-        [catalog, activeFilters]
-    );
+    // Debounce search input
+    useEffect(() => {
+        const timer = window.setTimeout(() => {
+            setSearchQuery(searchInput.trim());
+        }, 350);
+        return () => window.clearTimeout(timer);
+    }, [searchInput]);
+
+    // Use the shared pagination hook
+    const {
+        displayCatalog,
+        setCurrentPage,
+        totalPages,
+        safeCurrentPage,
+        totalCount,
+        isLoading,
+        isFetching,
+        pageSize,
+        totalStockCounts,
+    } = usePaginatedCatalog(searchQuery, activeFilters);
+
+    const addProductMutation = useMutation({
+        mutationFn: productsApi.create,
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ["inventory"] }),
+    });
 
     const [showAddProduct, setShowAddProduct] = useState(false);
     const [newName, setNewName] = useState("");
@@ -69,23 +58,13 @@ export function Inventory() {
     const [newBaseUnit, setNewBaseUnit] = useState("Tablet");
     const [errorMessage, setErrorMessage] = useState("");
 
-    const totalPages = Math.max(1, inventoryPage?.metadata.totalPages ?? 1);
-    const safeCurrentPage = inventoryPage?.metadata.currentPage ?? 1;
-    const totalCount = inventoryPage?.metadata.totalCount ?? catalog.length;
-
     const normalizedCatalog = useMemo(
-        () => new Set(catalog.map(item => {
+        () => new Set(displayCatalog.map(item => {
             const genericWithDosage = `${item.genericName} ${item.dosage ?? ""}`.trim().toLowerCase();
             return `${item.productDetails.trim().toLowerCase()}|${genericWithDosage}`;
         })),
-        [catalog]
+        [displayCatalog]
     );
-
-    const stockCounts = useMemo(() => ({
-        inStock: catalog.filter(p => p.status === "In Stock").length,
-        lowStock: catalog.filter(p => p.status === "Low Stock").length,
-        outOfStock: catalog.filter(p => p.status === "Out of Stock").length,
-    }), [catalog]);
 
     const handleAddProduct = async (e: FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -119,21 +98,11 @@ export function Inventory() {
         }
     };
 
-    if (isLoading && !inventoryPage) {
+    if (isLoading && displayCatalog.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center py-24 gap-3">
                 <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
                 <p className="text-sm text-slate-400">Loading inventory...</p>
-            </div>
-        );
-    }
-
-    if (isError) {
-        return (
-            <div className="flex flex-col items-center justify-center py-24 gap-3">
-                <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center text-red-500 text-xl">!</div>
-                <p className="text-sm text-red-500 font-medium">Failed to load inventory</p>
-                <p className="text-xs text-slate-400">Is the backend running?</p>
             </div>
         );
     }
@@ -152,7 +121,7 @@ export function Inventory() {
                     </button>
                     <button
                         onClick={() => { setShowAddProduct(true); setErrorMessage(""); }}
-                        className="px-3 py-2 bg-blue-600 text-slate-600 rounded-lg hover:bg-blue-700 transition-colors text-xs font-semibold shadow-sm flex items-center gap-1.5"
+                        className="px-3 py-2 bg-blue-600 text-slate-700 rounded-lg hover:bg-blue-700 transition-colors text-xs font-semibold shadow-sm flex items-center gap-1.5"
                     >
                         <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                             <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
@@ -166,17 +135,17 @@ export function Inventory() {
             <div className="flex gap-3 flex-wrap">
                 <div className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-xl shadow-sm text-xs">
                     <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                    <span className="font-semibold text-slate-700">{stockCounts.inStock}</span>
+                    <span className="font-semibold text-slate-700">{totalStockCounts.inStock}</span>
                     <span className="text-slate-400">In stock</span>
                 </div>
                 <div className="flex items-center gap-2 px-3 py-2 bg-white border border-amber-200 rounded-xl shadow-sm text-xs">
                     <span className="w-2 h-2 rounded-full bg-amber-400" />
-                    <span className="font-semibold text-amber-700">{stockCounts.lowStock}</span>
+                    <span className="font-semibold text-amber-700">{totalStockCounts.lowStock}</span>
                     <span className="text-slate-400">Low stock</span>
                 </div>
                 <div className="flex items-center gap-2 px-3 py-2 bg-white border border-red-200 rounded-xl shadow-sm text-xs">
                     <span className="w-2 h-2 rounded-full bg-red-400" />
-                    <span className="font-semibold text-red-700">{stockCounts.outOfStock}</span>
+                    <span className="font-semibold text-red-700">{totalStockCounts.outOfStock}</span>
                     <span className="text-slate-400">Out of stock</span>
                 </div>
             </div>

@@ -3,6 +3,7 @@ import cors from "cors";
 import { db } from "./db"
 import productsRoutes from "./routes/productsRoutes"
 import inventoryRoutes from "./routes/inventoryRoutes"
+import dashboardRoutes from "./routes/dashboardRoutes"
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -11,6 +12,7 @@ app.use(cors());
 app.use(express.json());
 app.use("/products", productsRoutes);
 app.use("/inventory", inventoryRoutes)
+app.use("/dashboard", dashboardRoutes);
 
 
 

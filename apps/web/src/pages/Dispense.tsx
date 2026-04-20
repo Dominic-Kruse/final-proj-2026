@@ -1,52 +1,22 @@
-import { useEffect, useMemo, useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { InventoryTable } from "../components/InventoryTable";
 import type { ProductCatalogItem, ProductBatch } from "../components/InventoryTable";
 import { DispenseList } from "../components/DispenseList";
 import type { DispenseItem, DispenseReason } from "../components/DispenseList";
 import { SearchBar } from "../components/SearchBar";
 import { SortFilterChips } from "../components/SortFilterChips";
-import { inventoryApi, type InventoryResponse } from "../api/inventory";
-import { transformInventory } from "../utils/transformInventory";
-import { applyDecorators, type SortFilter } from "../utils/catalogDecorators";
+import { inventoryApi } from "../api/inventory";
+import { type SortFilter } from "../utils/catalogDecorators";
+import { usePaginatedCatalog } from "../hooks/usePaginatedCatalog";
+import { MedicineWithStock } from "../utils/types";
 
 export function Dispense() {
     const queryClient = useQueryClient();
 
     // ── Pagination state (mirrors Inventory page) ─────────────────────────────
-    const pageSize = 20;
     const [searchInput, setSearchInput] = useState("");
     const [searchQuery, setSearchQuery] = useState("");
-    const [currentPage, setCurrentPage] = useState(1);
-
-    // Debounce search input — reset to page 1 on new query
-    useEffect(() => {
-        const timer = window.setTimeout(() => {
-            setSearchQuery(searchInput.trim());
-            setCurrentPage(1);
-        }, 350);
-        return () => window.clearTimeout(timer);
-    }, [searchInput]);
-
-    // ── Paginated inventory fetch (same pattern as Inventory page) ────────────
-    const { data: inventoryPage, isLoading, isFetching } = useQuery<InventoryResponse>({
-        queryKey: ["inventory-dispense", currentPage, pageSize, searchQuery],
-        queryFn: () => inventoryApi.getPage({
-            page: currentPage,
-            limit: pageSize,
-            search: searchQuery || undefined,
-        }),
-        placeholderData: (previousData) => previousData,
-    });
-
-    const rawInventory = inventoryPage?.data ?? [];
-    const totalPages = Math.max(1, inventoryPage?.metadata.totalPages ?? 1);
-    const safeCurrentPage = inventoryPage?.metadata.currentPage ?? 1;
-    const totalCount = inventoryPage?.metadata.totalCount ?? 0;
-
-    const catalog = useMemo(() => {
-        try { return transformInventory(rawInventory); } catch { return []; }
-    }, [rawInventory]);
 
     // ── Decorator pattern for sort/filter chips ───────────────────────────────
     const [activeFilters, setActiveFilters] = useState<SortFilter[]>([]);
@@ -59,10 +29,26 @@ export function Dispense() {
         );
     };
 
-    const displayCatalog = useMemo(
-        () => applyDecorators(catalog, activeFilters),
-        [catalog, activeFilters]
-    );
+    // Debounce search input — reset to page 1 on new query
+    useEffect(() => {
+        const timer = window.setTimeout(() => {
+            setSearchQuery(searchInput.trim());
+        }, 350);
+        return () => window.clearTimeout(timer);
+    }, [searchInput]);
+
+    // Use the shared pagination hook
+    const {
+        displayCatalog,
+        setCurrentPage,
+        totalPages,
+        safeCurrentPage,
+        totalCount,
+        isLoading,
+        isFetching,
+        rawInventory,
+        pageSize,
+    } = usePaginatedCatalog(searchQuery, activeFilters);
 
     // ── Dispense mutation ─────────────────────────────────────────────────────
     const dispenseMutation = useMutation({
@@ -81,8 +67,8 @@ export function Dispense() {
     const handleAddToDispense = (product: ProductCatalogItem, batch: ProductBatch) => {
         if (dispenseItems.find(i => i.batchNumber === batch.batchNumber)) return;
 
-        const medicine = rawInventory.find(m => m.id === product.productId);
-        const realBatch = medicine?.batches.find(b => b.batchNumber === batch.batchNumber);
+        const medicine = rawInventory.find((m: MedicineWithStock) => m.id === product.productId);
+        const realBatch = medicine?.batches.find((b: any) => b.batchNumber === batch.batchNumber);
         if (!realBatch) return;
 
         setDispenseItems(prev => [...prev, {
@@ -138,7 +124,7 @@ export function Dispense() {
 
     // ── Render ────────────────────────────────────────────────────────────────
 
-    if (isLoading && !inventoryPage) {
+    if (isLoading && displayCatalog.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center py-24 gap-3">
                 <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />

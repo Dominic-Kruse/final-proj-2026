@@ -1,14 +1,17 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { StatCard } from "../components/StatCard";
 import { Chart } from "../components/Chart";
 import { InventoryTable } from "../components/InventoryTable";
+import { InventoryAlertModal } from "../components/InventoryAlertModal";
 import { inventoryApi } from "../api/inventory";
 import { transformInventory } from "../utils/transformInventory";
 
 
 
 export function Dashboard() {
+    const [activeModal, setActiveModal] = useState<"low-stock" | "expired" | null>(null);
+
     const { data: rawInventory = [], isLoading } = useQuery({
         queryKey: ["inventory"],
         queryFn: inventoryApi.getAll,
@@ -49,6 +52,8 @@ export function Dashboard() {
                     title="Low Stock"
                     value={isLoading ? "..." : String(stats.lowStock)}
                     subtitle="Needs restock"
+                    variant="warning"
+                    onClick={() => setActiveModal("low-stock")}
                 />
                 <StatCard
                     title="Out of Stock"
@@ -59,6 +64,8 @@ export function Dashboard() {
                     title="Expired Batches"
                     value={isLoading ? "..." : String(stats.expired)}
                     subtitle="Remove soon"
+                    variant="danger"
+                    onClick={() => setActiveModal("expired")}
                 />
             </div>
 
@@ -69,6 +76,13 @@ export function Dashboard() {
             <div className="mb-8">
                 <InventoryTable products={catalog} />
             </div>
+
+            {activeModal && (
+                <InventoryAlertModal
+                    type={activeModal}
+                    onClose={() => setActiveModal(null)}
+                />
+            )}
         </>
     );
 }

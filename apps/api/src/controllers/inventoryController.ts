@@ -6,7 +6,7 @@ import {
   StockInCommand,
   StockInValidationError,
   type StockInwardPayload,
-} from "../commands/Stockincommands";
+} from "../commands/StockInCommands";
 
 // ── Shared error helper ────────────────────────────────────────────────────────
 function handleError(res: Response, error: unknown, message: string) {
