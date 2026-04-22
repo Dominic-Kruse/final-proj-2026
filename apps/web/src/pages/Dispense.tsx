@@ -169,8 +169,8 @@ export function Dispense() {
             )}
 
             {/* Main layout: table + dispense cart */}
-            <main className="w-full flex flex-col lg:flex-row gap-6 items-start">
-                <section className="flex-1 flex flex-col min-h-0 gap-4">
+            <main className="w-full flex flex-col xl:flex-row gap-6 items-start">
+                <section className="flex-1 min-w-0 flex flex-col min-h-0 gap-4">
                     <div className="flex-1 min-h-0 rounded-3xl overflow-hidden border border-slate-200/50 bg-white shadow-sm">
                         <InventoryTable
                             products={displayCatalog}
@@ -228,7 +228,7 @@ export function Dispense() {
                         </div>
                     </div>
                 </section>
-                <aside className="w-full lg:w-96 shrink-0 lg:sticky lg:top-6">
+                <aside className="w-full xl:w-80 shrink-0 xl:sticky xl:top-6">
                     <DispenseList
                         items={dispenseItems}
                         onUpdateQuantity={handleUpdateQuantity}

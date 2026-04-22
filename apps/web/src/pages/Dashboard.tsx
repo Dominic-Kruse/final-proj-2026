@@ -7,6 +7,25 @@ import { InventoryAlertModal } from "../components/InventoryAlertModal";
 import { inventoryApi } from "../api/inventory";
 import { transformInventory } from "../utils/transformInventory";
 
+function daysLeft(expiryDate: string) {
+    return Math.ceil((new Date(expiryDate).getTime() - Date.now()) / 86400000);
+}
+
+function getInventoryPriority(item: { status: string; batches: { expiryDate: string }[] }) {
+    const hasExpired = item.batches.some(batch => daysLeft(batch.expiryDate) <= 0);
+    if (hasExpired) return 0;
+
+    const hasNearExpiry = item.batches.some(batch => {
+        const days = daysLeft(batch.expiryDate);
+        return days > 0 && days <= 90;
+    });
+    if (hasNearExpiry) return 1;
+
+    if (item.status === "Low Stock") return 2;
+    if (item.status === "Out of Stock") return 3;
+    return 4;
+}
+
 
 
 export function Dashboard() {
@@ -18,7 +37,13 @@ export function Dashboard() {
     });
 
    const catalog = useMemo(() => {
-           try { return transformInventory(rawInventory); } catch { return []; }
+           try {
+               return transformInventory(rawInventory).sort((a, b) => {
+                   const priorityDiff = getInventoryPriority(a) - getInventoryPriority(b);
+                   if (priorityDiff !== 0) return priorityDiff;
+                   return a.productDetails.localeCompare(b.productDetails);
+               });
+           } catch { return []; }
        }, [rawInventory]);
 
     const stats = useMemo(() => {
