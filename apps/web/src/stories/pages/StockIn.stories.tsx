@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 
 import { StockIn } from '../../pages/StockIn';
-import { userEvent } from 'storybook/test';
 
 const meta = {
   component: StockIn,

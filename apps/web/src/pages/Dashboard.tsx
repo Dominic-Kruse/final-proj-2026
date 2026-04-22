@@ -4,32 +4,21 @@ import { StatCard } from "../components/StatCard";
 import { Chart } from "../components/Chart";
 import { InventoryTable } from "../components/InventoryTable";
 import { InventoryAlertModal } from "../components/InventoryAlertModal";
+import { ChipToggleGroup } from "../components/ChipToggleGroup";
 import { inventoryApi } from "../api/inventory";
 import { transformInventory } from "../utils/transformInventory";
-
-function daysLeft(expiryDate: string) {
-    return Math.ceil((new Date(expiryDate).getTime() - Date.now()) / 86400000);
-}
-
-function getInventoryPriority(item: { status: string; batches: { expiryDate: string }[] }) {
-    const hasExpired = item.batches.some(batch => daysLeft(batch.expiryDate) <= 0);
-    if (hasExpired) return 0;
-
-    const hasNearExpiry = item.batches.some(batch => {
-        const days = daysLeft(batch.expiryDate);
-        return days > 0 && days <= 90;
-    });
-    if (hasNearExpiry) return 1;
-
-    if (item.status === "Low Stock") return 2;
-    if (item.status === "Out of Stock") return 3;
-    return 4;
-}
+import {
+    expiryOnlyInventoryStrategy,
+    stockOnlyInventoryStrategy,
+} from "../utils/inventoryUrgencyStrategy";
 
 
 
 export function Dashboard() {
     const [activeModal, setActiveModal] = useState<"low-stock" | "expired" | null>(null);
+    const [activeView, setActiveView] = useState<"all" | "stock" | "expiry">("all");
+    const stockStrategy = stockOnlyInventoryStrategy;
+    const expiryStrategy = expiryOnlyInventoryStrategy;
 
     const { data: rawInventory = [], isLoading } = useQuery({
         queryKey: ["inventory"],
@@ -38,13 +27,47 @@ export function Dashboard() {
 
    const catalog = useMemo(() => {
            try {
-               return transformInventory(rawInventory).sort((a, b) => {
-                   const priorityDiff = getInventoryPriority(a) - getInventoryPriority(b);
-                   if (priorityDiff !== 0) return priorityDiff;
-                   return a.productDetails.localeCompare(b.productDetails);
-               });
+               return transformInventory(rawInventory);
            } catch { return []; }
        }, [rawInventory]);
+
+    const stockCatalog = useMemo(
+        () => stockStrategy.sort(stockStrategy.filterUrgent(catalog)),
+        [catalog, stockStrategy]
+    );
+
+    const expiryCatalog = useMemo(
+        () => expiryStrategy.sort(expiryStrategy.filterUrgent(catalog)),
+        [catalog, expiryStrategy]
+    );
+
+    const allAlertsCatalog = useMemo(
+        () => expiryStrategy.sort(
+            catalog.filter((item) => stockStrategy.isUrgent(item) || expiryStrategy.isUrgent(item))
+        ),
+        [catalog, stockStrategy, expiryStrategy]
+    );
+
+    const alertViewOptions = [
+        {
+            key: "all" as const,
+            label: "All alerts",
+            activeClass: "bg-slate-800 text-white border-slate-800",
+            dotClass: "bg-white",
+        },
+        {
+            key: "stock" as const,
+            label: "Stock alerts",
+            activeClass: "bg-emerald-500 text-white border-emerald-500",
+            dotClass: "bg-white",
+        },
+        {
+            key: "expiry" as const,
+            label: "Expiry alerts",
+            activeClass: "bg-red-600 text-white border-red-600",
+            dotClass: "bg-white",
+        },
+    ];
 
     const stats = useMemo(() => {
         const today = new Date().toISOString().slice(0, 10);
@@ -98,8 +121,54 @@ export function Dashboard() {
                 <Chart />
             </div>
 
-            <div className="mb-8">
-                <InventoryTable products={catalog} />
+            <div className="mb-8 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <h2 className="text-lg font-bold text-slate-800">Inventory alerts</h2>
+                        <p className="text-sm text-slate-500">
+                            Switch between stock risk and expiry risk.
+                        </p>
+                    </div>
+
+                    <ChipToggleGroup
+                        label="View by"
+                        items={alertViewOptions}
+                        activeValues={[activeView]}
+                        onToggle={(value) => setActiveView(value)}
+                        showOrderBadges={false}
+                    />
+                </div>
+
+                <InventoryTable
+                    products={
+                        activeView === "all"
+                            ? allAlertsCatalog
+                            : activeView === "stock"
+                                ? stockCatalog
+                                : expiryCatalog
+                    }
+                    title={
+                        activeView === "all"
+                            ? "All alerts"
+                            : activeView === "stock"
+                                ? "Stock alerts"
+                                : "Expiry alerts"
+                    }
+                    emptyTitle={
+                        activeView === "all"
+                            ? "No alerts right now"
+                            : activeView === "stock"
+                            ? "No stock alerts right now"
+                            : "No expiry alerts right now"
+                    }
+                    emptySubtitle={
+                        activeView === "all"
+                            ? "No stock or expiry alerts were found."
+                            : activeView === "stock"
+                            ? "No low-stock or out-of-stock medicines were found."
+                            : "No expired or near-expiry medicines were found."
+                    }
+                />
             </div>
 
             {activeModal && (

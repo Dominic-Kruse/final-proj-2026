@@ -32,6 +32,9 @@ type InventoryTableProps = {
     products?: ProductCatalogItem[];
     mode?: "view" | "dispense";
     onAddBatch?: (product: ProductCatalogItem, batch: ProductBatch) => void;
+    title?: string;
+    emptyTitle?: string;
+    emptySubtitle?: string;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -71,8 +74,17 @@ function StatusPill({ status }: { status: ProductCatalogItem["status"] }) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function InventoryTable({ products = [], mode = "view", onAddBatch }: InventoryTableProps) {
+export function InventoryTable({
+    products = [],
+    mode = "view",
+    onAddBatch,
+    title,
+    emptyTitle = "No products found",
+    emptySubtitle = "Add a product or complete a stock inward to get started.",
+}: InventoryTableProps) {
     const [expandedProduct, setExpandedProduct] = useState<number | null>(null);
+
+    const resolvedTitle = title ?? (mode === "dispense" ? "Select medicine" : "Inventory master");
 
     if (products.length === 0) {
         return (
@@ -83,8 +95,8 @@ export function InventoryTable({ products = [], mode = "view", onAddBatch }: Inv
                         <path strokeLinecap="round" strokeLinejoin="round" d="M16 3H8a2 2 0 00-2 2v2h12V5a2 2 0 00-2-2z"/>
                     </svg>
                 </div>
-                <p className="text-sm font-medium text-slate-500">No products found</p>
-                <p className="text-xs text-slate-400">Add a product or complete a stock inward to get started.</p>
+                <p className="text-sm font-medium text-slate-500">{emptyTitle}</p>
+                <p className="text-xs text-slate-400">{emptySubtitle}</p>
             </div>
         );
     }
@@ -93,7 +105,7 @@ export function InventoryTable({ products = [], mode = "view", onAddBatch }: Inv
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2.5">
                 <h2 className="text-sm font-bold text-slate-800">
-                    {mode === "dispense" ? "Select medicine" : "Inventory master"}
+                    {resolvedTitle}
                 </h2>
                 <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">
                     {products.length} products
