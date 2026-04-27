@@ -41,7 +41,10 @@ export function StockIn() {
 
   const stockInwardMutation = useMutation({
     mutationFn: inventoryApi.stockInward,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["inventory"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    },
   });
 
   // ── Inward header ──────────────────────────────────────────────────────────

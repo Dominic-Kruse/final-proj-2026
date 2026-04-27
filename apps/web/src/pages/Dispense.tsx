@@ -56,6 +56,7 @@ export function Dispense() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["inventory"] });
             queryClient.invalidateQueries({ queryKey: ["inventory-dispense"] });
+            queryClient.invalidateQueries({ queryKey: ["dashboard"] });
         },
     });
 
