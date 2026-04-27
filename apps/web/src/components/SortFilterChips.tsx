@@ -12,31 +12,31 @@ const FILTERS: {
   {
     key: "alphabetical",
     label: "A → Z",
-    activeClass: "bg-slate-800 text-white border-slate-800",
+    activeClass: "bg-blue-600 text-white border-blue-600",
     dotClass: "bg-white",
   },
   {
     key: "in-stock",
     label: "In stock",
-    activeClass: "bg-emerald-500 text-white border-emerald-500",
+    activeClass: "bg-blue-600 text-white border-blue-600",
     dotClass: "bg-white",
   },
   {
     key: "low-stock",
     label: "Low stock",
-    activeClass: "bg-amber-500 text-white border-amber-500",
+    activeClass: "bg-blue-600 text-white border-blue-600",
     dotClass: "bg-white",
   },
   {
     key: "near-expiry",
     label: "Near expiry",
-    activeClass: "bg-orange-500 text-white border-orange-500",
+    activeClass: "bg-blue-600 text-white border-blue-600",
     dotClass: "bg-white",
   },
   {
     key: "expired",
     label: "Expired",
-    activeClass: "bg-red-600 text-white border-red-600",
+    activeClass: "bg-blue-600 text-white border-blue-600",
     dotClass: "bg-white",
   },
 ];

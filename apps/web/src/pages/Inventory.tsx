@@ -121,7 +121,7 @@ export function Inventory() {
                     </button>
                     <button
                         onClick={() => { setShowAddProduct(true); setErrorMessage(""); }}
-                        className="px-3 py-2 bg-blue-600 text-slate-700 rounded-lg hover:bg-blue-700 transition-colors text-xs font-semibold shadow-sm flex items-center gap-1.5"
+                        className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs font-semibold shadow-sm flex items-center gap-1.5"
                     >
                         <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                             <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>

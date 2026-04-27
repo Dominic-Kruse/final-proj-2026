@@ -327,7 +327,7 @@ export function InventoryTable({
                                                                                     <button
                                                                                         onClick={e => { e.stopPropagation(); onAddBatch?.(product, batch); }}
                                                                                         disabled={expired || batch.quantity === 0}
-                                                                                        className="px-3 py-1.5 bg-slate-800 text-black text-[11px] font-bold rounded-lg hover:bg-black active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                                                                                        className="px-3 py-1.5 bg-blue-600 text-white text-[11px] font-bold rounded-lg hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                                                                                     >
                                                                                         Add
                                                                                     </button>

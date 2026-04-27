@@ -129,7 +129,7 @@ export function InventoryAlertModal({ type, onClose }: Props) {
           <span className="text-xs text-slate-400">{filtered.length} item{filtered.length !== 1 ? "s" : ""} found</span>
           <button
             onClick={() => { onClose(); navigate(config.actionPath); }}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-slate-700 text-sm font-semibold rounded-xl transition-colors"
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors"
           >
             {config.actionLabel}
           </button>

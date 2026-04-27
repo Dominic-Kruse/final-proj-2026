@@ -222,7 +222,7 @@ export function BatchEntryForm({
           <button type="button" onClick={onClear} className="px-4 py-2 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors">
             Clear
           </button>
-          <button type="submit" className="px-4 py-2 bg-blue-600 text-slate-700 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors shadow-sm">
+          <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors shadow-sm">
             Add to draft list
           </button>
         </div>

@@ -12,7 +12,7 @@ export function PillSelector({ options, value, onChange, colorClass }: PillSelec
         <button
           key={opt}
           type="button"
-          onClick={() => onChange(opt)}
+          onClick={() => onChange(value === opt ? "": opt)}
           className={`px-3 py-1.5 rounded-full text-xs border transition-all font-medium ${
             value === opt
               ? colorClass

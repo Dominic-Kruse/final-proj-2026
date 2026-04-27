@@ -52,19 +52,19 @@ export function Dashboard() {
         {
             key: "all" as const,
             label: "All alerts",
-            activeClass: "bg-slate-800 text-white border-slate-800",
+            activeClass: "bg-blue-600 text-white border-blue-600",
             dotClass: "bg-white",
         },
         {
             key: "stock" as const,
             label: "Stock alerts",
-            activeClass: "bg-emerald-500 text-white border-emerald-500",
+            activeClass: "bg-blue-600 text-white border-blue-600",
             dotClass: "bg-white",
         },
         {
             key: "expiry" as const,
             label: "Expiry alerts",
-            activeClass: "bg-red-600 text-white border-red-600",
+            activeClass: "bg-blue-600 text-white border-blue-600",
             dotClass: "bg-white",
         },
     ];
