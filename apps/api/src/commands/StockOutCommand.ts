@@ -1,7 +1,8 @@
 import { db } from "../db";
 import { inventoryBatches, stockTransactions } from "../db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { type AuditActorContext, logAuditEvent } from "../services/auditService";
+import { type Command } from "./BaseCommand";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 export interface DispenseItem {
@@ -18,6 +19,7 @@ export interface StockOutwardPayload {
 
 export interface StockOutwardResult {
   message: string;
+  dispensedBatchIds: number[];
 }
 
 // ── Typed validation error ─────────────────────────────────────────────────────
@@ -28,31 +30,33 @@ export class StockOutValidationError extends Error {
   }
 }
 
+// ── Shared active-batch filter ─────────────────────────────────────────────────
+export const activeBatchFilter = eq(inventoryBatches.status, "available");
+
 // ── Command ────────────────────────────────────────────────────────────────────
-export class StockOutCommand {
+export class StockOutCommand implements Command<StockOutwardResult> {
   private payload: StockOutwardPayload;
 
   constructor(payload: StockOutwardPayload) {
     this.payload = payload;
   }
 
-  // ── Public entry point ───────────────────────────────────────────────────────
+  // ── Public entry point (Command interface) ───────────────────────────────────
   async execute(): Promise<StockOutwardResult> {
-    this.validateItems();
-    await this.runTransaction();
-
+    this.validate();
+    const dispensedBatchIds = await this.runTransaction();
     return {
       message: `Dispensed ${this.payload.items.length} batch(es) successfully.`,
+      dispensedBatchIds,
     };
   }
 
-  // ── Step 1: validate the items array ────────────────────────────────────────
-  private validateItems(): void {
+  // ── Step 1: validate ─────────────────────────────────────────────────────────
+  private validate(): void {
     const { items } = this.payload;
 
-    if (!Array.isArray(items) || items.length === 0) {
+    if (!Array.isArray(items) || items.length === 0)
       throw new StockOutValidationError("At least one item is required");
-    }
 
     for (const [i, item] of items.entries()) {
       const label = `items[${i}]`;
@@ -66,40 +70,55 @@ export class StockOutCommand {
     }
   }
 
-  // ── Step 2: check stock levels + update batches + log transactions ───────────
-  private async runTransaction(): Promise<void> {
+  // ── Step 2: execute transaction ──────────────────────────────────────────────
+  private async runTransaction(): Promise<number[]> {
     const { items, performedBy, actorContext } = this.payload;
+    const actor = performedBy?.trim() || "Unknown";
+    const dispensedBatchIds: number[] = [];
 
     await db.transaction(async (tx) => {
       for (const item of items) {
-        // Fetch the batch inside the transaction for a consistent read
+        // Row-level lock — prevents concurrent dispense race conditions
         const [batch] = await tx
           .select()
           .from(inventoryBatches)
-          .where(eq(inventoryBatches.id, item.batchId))
+          .where(
+            and(
+              eq(inventoryBatches.id, item.batchId),
+              activeBatchFilter,
+            )
+          )
+          .for("update")
           .limit(1);
 
         if (!batch)
-          throw new StockOutValidationError(`Batch ${item.batchId} not found`);
+          throw new StockOutValidationError(
+            `Batch ${item.batchId} not found or is no longer available`
+          );
 
         if (batch.currentQuantity < item.quantity)
           throw new StockOutValidationError(
-            `Insufficient stock for batch ${batch.batchNumber}`
+            `Insufficient stock for batch ${batch.batchNumber} ` +
+            `(available: ${batch.currentQuantity}, requested: ${item.quantity})`
           );
 
-        // Deduct stock
+        const newQuantity = batch.currentQuantity - item.quantity;
+        const isFullyDispensed = newQuantity === 0;
+
         await tx
           .update(inventoryBatches)
-          .set({ currentQuantity: batch.currentQuantity - item.quantity })
+          .set({
+            currentQuantity: newQuantity,
+            ...(isFullyDispensed && { status: "dispensed" }),
+          })
           .where(eq(inventoryBatches.id, item.batchId));
 
-        // Audit log
         await tx.insert(stockTransactions).values({
           batchId: item.batchId,
           type: "outward",
           quantityChanged: -item.quantity,
           reason: item.reason,
-          performedBy: performedBy ?? "Administrator",
+          performedBy: actor,
         });
 
         await logAuditEvent(tx, {
@@ -108,15 +127,21 @@ export class StockOutCommand {
           entityId: item.batchId,
           oldValues: {
             previousQuantity: batch.currentQuantity,
+            status: batch.status,
           },
           newValues: {
-            newQuantity: batch.currentQuantity - item.quantity,
+            newQuantity,
             deductedQuantity: item.quantity,
             reason: item.reason,
+            status: isFullyDispensed ? "dispensed" : "available",
           },
-          context: actorContext ?? { performedBy: performedBy ?? "Administrator" },
+          context: actorContext ?? { performedBy: actor },
         });
+
+        dispensedBatchIds.push(item.batchId);
       }
     });
+
+    return dispensedBatchIds;
   }
 }

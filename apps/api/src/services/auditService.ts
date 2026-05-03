@@ -7,7 +7,7 @@ export interface AuditActorContext {
 }
 
 export interface AuditLogInput {
-  action: "create" | "update" | "delete" | "stock_inward" | "stock_outward";
+  action: "create" | "update" | "delete" | "stock_inward" | "stock_outward" | "undo_dispense";
   entityType: "product" | "inventory_batch";
   entityId: number;
   oldValues?: unknown;

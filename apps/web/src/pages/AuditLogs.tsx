@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { auditLogsApi } from "../api/auditLogs";
+import { inventoryApi } from "../api/inventory";
 
 function formatTimestamp(value: string | null) {
   if (!value) return "—";
@@ -59,6 +60,9 @@ function Badge({ children }: { children: string }) {
 export function AuditLogs() {
   const [page, setPage] = useState(1);
   const limit = 20;
+  const queryClient = useQueryClient();
+  const [undoingBatchId, setUndoingBatchId] = useState<number | null>(null);
+  const [undoMessage, setUndoMessage] = useState("");
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ["audit-logs", page, limit],
@@ -67,6 +71,21 @@ export function AuditLogs() {
     refetchOnMount: "always",
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
+  });
+
+  const undoMutation = useMutation({
+    mutationFn: (batchId: number) => inventoryApi.undoDispense(batchId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["audit-logs"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      setUndoMessage("Dispense undone successfully!");
+      setTimeout(() => setUndoMessage(""), 3000);
+    },
+    onError: (error: any) => {
+      const errorMsg = error?.response?.data?.error || "Failed to undo dispense";
+      setUndoMessage(`Error: ${errorMsg}`);
+      setTimeout(() => setUndoMessage(""), 3000);
+    },
   });
 
   const rows = data?.data ?? [];
@@ -119,6 +138,14 @@ export function AuditLogs() {
         </div>
       </div>
 
+      {undoMessage && (
+        <div className={`rounded-lg px-4 py-3 text-sm font-medium ${
+          undoMessage.startsWith("Error") ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"
+        }`}>
+          {undoMessage}
+        </div>
+      )}
+
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-100 px-5 py-4">
           <div className="flex items-center justify-between gap-3">
@@ -155,6 +182,7 @@ export function AuditLogs() {
                   <th className="px-3 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400">User agent</th>
                   <th className="px-3 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400">Old values</th>
                   <th className="px-3 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400">New values</th>
+                  <th className="px-3 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-slate-400">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -202,6 +230,22 @@ export function AuditLogs() {
                         >
                           {newSummary.preview}
                         </div>
+                      </td>
+                      <td className="px-3 py-4">
+                        {row.action === "stock_outward" && row.entityType === "inventory_batch" ? (
+                          <button
+                            onClick={() => {
+                              setUndoingBatchId(row.entityId);
+                              undoMutation.mutate(row.entityId);
+                            }}
+                            disabled={undoMutation.isPending}
+                            className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {undoMutation.isPending && undoingBatchId === row.entityId ? "Undoing..." : "Undo"}
+                          </button>
+                        ) : (
+                          <span className="text-xs text-slate-400">—</span>
+                        )}
                       </td>
                     </tr>
                   );

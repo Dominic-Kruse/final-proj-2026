@@ -2,6 +2,7 @@ import { db } from "../db";
 import { inventoryBatches, products, stockTransactions } from "../db/schema";
 import { inArray } from "drizzle-orm";
 import { type AuditActorContext, logAuditEvent } from "../services/auditService";
+import { type Command } from "./BaseCommand";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 export interface BatchInput {
@@ -40,44 +41,38 @@ export class StockInValidationError extends Error {
 }
 
 // ── Command ────────────────────────────────────────────────────────────────────
-export class StockInCommand {
+export class StockInCommand implements Command<StockInwardResult> {
   private payload: StockInwardPayload;
 
   constructor(payload: StockInwardPayload) {
     this.payload = payload;
   }
 
-  // ── Public entry point ───────────────────────────────────────────────────────
+  // ── Public entry point (Command interface) ───────────────────────────────────
   async execute(): Promise<StockInwardResult> {
-    this.validateHeader();
-    this.validateBatches();
+    this.validate();
     await this.assertProductsExist();
     const savedBatches = await this.runTransaction();
-
     return {
       message: `Stock inward saved. ${savedBatches.length} batch(es) added.`,
       batches: savedBatches,
     };
   }
 
-  // ── Step 1: validate header fields ──────────────────────────────────────────
-  private validateHeader(): void {
-    const { supplierName, referenceNumber, dateReceived } = this.payload;
+  // ── Step 1: validate all fields ──────────────────────────────────────────────
+  // Unified into a single validate() to match the pattern of other commands
+  private validate(): void {
+    const { supplierName, referenceNumber, dateReceived, batches } = this.payload;
 
-    if (!supplierName?.trim() || !referenceNumber?.trim() || !dateReceived) {
+    if (!supplierName?.trim() || !referenceNumber?.trim() || !dateReceived)
       throw new StockInValidationError(
         "supplierName, referenceNumber, and dateReceived are required"
       );
-    }
 
-    if (!Array.isArray(this.payload.batches) || this.payload.batches.length === 0) {
+    if (!Array.isArray(batches) || batches.length === 0)
       throw new StockInValidationError("At least one batch is required");
-    }
-  }
 
-  // ── Step 2: validate each batch row ─────────────────────────────────────────
-  private validateBatches(): void {
-    for (const [i, b] of this.payload.batches.entries()) {
+    for (const [i, b] of batches.entries()) {
       const label = `batches[${i}]`;
 
       if (!Number.isFinite(b.productId) || b.productId <= 0)
@@ -95,7 +90,7 @@ export class StockInCommand {
     }
   }
 
-  // ── Step 3: confirm all product IDs exist in the DB ──────────────────────────
+  // ── Step 2: confirm all product IDs exist in the DB ──────────────────────────
   private async assertProductsExist(): Promise<void> {
     const uniqueProductIds = [...new Set(this.payload.batches.map((b) => b.productId))];
 
@@ -111,10 +106,11 @@ export class StockInCommand {
     }
   }
 
-  // ── Step 4: insert batches + audit log in one atomic transaction ──────────────
+  // ── Step 3: insert batches + audit log in one atomic transaction ──────────────
   private async runTransaction() {
     const { supplierName, referenceNumber, dateReceived, batches, performedBy, actorContext } =
       this.payload;
+    const actor = performedBy?.trim() || "system";
 
     return db.transaction(async (tx) => {
       const results = [];
@@ -143,7 +139,7 @@ export class StockInCommand {
           type: "restock",
           quantityChanged: b.quantity,
           reason: `Stock inward from ${supplierName.trim()} — ref: ${referenceNumber.trim()}`,
-          performedBy: performedBy ?? "system",
+          performedBy: actor,
         });
 
         await logAuditEvent(tx, {
@@ -158,7 +154,7 @@ export class StockInCommand {
             referenceNumber: referenceNumber.trim(),
             receivedDate: dateReceived,
           },
-          context: actorContext ?? { performedBy: performedBy ?? "system" },
+          context: actorContext ?? { performedBy: actor },
         });
 
         results.push(inserted);

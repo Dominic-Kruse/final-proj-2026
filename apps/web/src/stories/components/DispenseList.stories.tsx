@@ -21,6 +21,8 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   args: {
     "items": [],
+    "dispensedBy": "",
+    "onDispensedByChange": fn(),
     "onUpdateQuantity": fn(),
     "onUpdateReason": fn(),
     "onRemove": fn(),

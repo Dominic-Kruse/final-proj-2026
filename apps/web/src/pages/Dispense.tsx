@@ -62,16 +62,17 @@ export function Dispense() {
 
     // ── Dispense cart state ───────────────────────────────────────────────────
     const [dispenseItems, setDispenseItems] = useState<DispenseItem[]>([]);
+    const [dispensedBy, setDispensedBy] = useState("");
     const [errorMessage, setErrorMessage] = useState("");
     const [successMessage, setSuccessMessage] = useState("");
 
     const handleAddToDispense = (product: ProductCatalogItem, batch: ProductBatch) => {
-        if (dispenseItems.find(i => i.batchNumber === batch.batchNumber)) return;
-
-        const medicine = rawInventory.find((m: MedicineWithStock) => m.id === product.productId);
-        const realBatch = medicine?.batches.find((b: any) => b.batchNumber === batch.batchNumber);
+    if (dispenseItems.find(i => i.batchNumber === batch.batchNumber)) return;
+ 
+    const medicine = rawInventory.find((m: MedicineWithStock) => m.id === product.productId);
+    const realBatch = medicine?.batches.find((b: any) => b.batchNumber === batch.batchNumber);
         if (!realBatch) return;
-
+    
         setDispenseItems(prev => [...prev, {
             productId: product.productId,
             batchId: realBatch.id,
@@ -80,6 +81,7 @@ export function Dispense() {
             quantity: 1,
             maxQuantity: batch.quantity,
             reason: "Sale",
+            sellingPrice: batch.sellingPrice,   
         }]);
     };
 
@@ -115,9 +117,11 @@ export function Dispense() {
                     quantity: i.quantity,
                     reason: i.reason,
                 })),
+                performedBy: dispensedBy.trim() || undefined,
             });
             setSuccessMessage(`Successfully dispensed ${dispenseItems.length} batch(es).`);
             setDispenseItems([]);
+            setDispensedBy("");
         } catch {
             setErrorMessage("Failed to dispense. Please try again.");
         }
@@ -232,6 +236,8 @@ export function Dispense() {
                 <aside className="w-full xl:w-80 shrink-0 xl:sticky xl:top-6">
                     <DispenseList
                         items={dispenseItems}
+                        dispensedBy={dispensedBy}
+                        onDispensedByChange={setDispensedBy}
                         onUpdateQuantity={handleUpdateQuantity}
                         onUpdateReason={handleUpdateReason}
                         onRemove={handleRemove}

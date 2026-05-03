@@ -8,5 +8,6 @@ router.get("/", inventoryController.getAllInventory);
 router.get("/:id", inventoryController.getInventoryById);
 router.post("/stock-inward", inventoryController.stockInward);
 router.post("/stock-outward", dispenseController.stockOutward);
+router.post("/stock-outward/undo/:batchId", dispenseController.undoDispense);
 
 export default router;

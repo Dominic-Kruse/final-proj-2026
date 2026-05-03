@@ -150,8 +150,8 @@ export function InventoryTable({
                                         <td className="px-5 py-3" style={{ width: "18%" }}>
                                             <p className="font-bold text-slate-900 leading-tight">{product.productDetails}</p>
                                             <p className="text-[10px] text-slate-400 mt-0.5 font-mono">{unitLabel}</p>
-                                            {hasExpired    && <p className="text-[10px] font-bold text-red-500 mt-0.5">⚠ Expired batch</p>}
-                                            {hasNearExpiry && <p className="text-[10px] font-bold text-amber-600 mt-0.5">⚠ Near expiry</p>}
+                                            {hasExpired    && <p className="text-[10px] font-bold text-red-500 mt-0.5">⚠ Contains Expired batch</p>}
+                                            {hasNearExpiry && <p className="text-[10px] font-bold text-amber-600 mt-0.5">⚠ Contains Near expiry</p>}
                                         </td>
 
                                         {/* Generic + form */}

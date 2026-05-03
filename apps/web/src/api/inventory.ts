@@ -90,8 +90,17 @@ export const inventoryApi = {
             reason: string;
         }[];
         performedBy?: string;
-    }): Promise<{ message: string }> => {
+    }): Promise<{ message: string; dispensedBatchIds: number[] }> => {
         const res = await apiClient.post("/inventory/stock-outward", payload);
+        return res.data;
+    },
+
+    undoDispense: async (batchId: number, performedBy?: string): Promise<{
+        message: string;
+        batchId: number;
+        quantityRestored: number;
+    }> => {
+        const res = await apiClient.post(`/inventory/stock-outward/undo/${batchId}`, { performedBy });
         return res.data;
     },
 };

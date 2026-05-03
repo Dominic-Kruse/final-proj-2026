@@ -1,13 +1,15 @@
 import { db } from "../db";
 import { inventoryBatches, products } from "../db/schema";
-import { eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, eq, ilike, inArray, or, sql } from "drizzle-orm";
 import { Request, Response } from "express";
 import {
   StockInCommand,
   StockInValidationError,
   type StockInwardPayload,
 } from "../commands/StockInCommands";
+import { activeBatchFilter } from "../commands/StockOutCommand";
 import { getAuditActorContext } from "../services/auditContext";
+import { commandInvoker } from "../commands/BaseCommand";
 
 // ── Shared error helper ────────────────────────────────────────────────────────
 function handleError(res: Response, error: unknown, message: string) {
@@ -74,7 +76,12 @@ export const inventoryController = {
         db
           .select()
           .from(inventoryBatches)
-          .where(inArray(inventoryBatches.productId, productIds)),
+          .where(
+            and(
+              inArray(inventoryBatches.productId, productIds),
+              activeBatchFilter,          // ← excludes dispensed batches
+            )
+          ),
       ]);
 
       const stockMap = new Map<number, number>();
@@ -119,7 +126,12 @@ export const inventoryController = {
         .select()
         .from(inventoryBatches)
         .leftJoin(products, eq(inventoryBatches.productId, products.id))
-        .where(eq(inventoryBatches.id, id));
+        .where(
+          and(
+            eq(inventoryBatches.id, id),
+            activeBatchFilter,             // ← rejects dispensed batches
+          )
+        );
 
       if (!item) {
         res.status(404).json({ error: "Inventory item not found" });
@@ -140,13 +152,9 @@ export const inventoryController = {
         actorContext: getAuditActorContext(req),
       };
 
-      // ── Delegate all logic to the command ─────────────────────────────────
-      const command = new StockInCommand(payload);
-      const result = await command.execute();
-
+      const result = await commandInvoker.run(new StockInCommand(payload));
       res.status(201).json(result);
     } catch (error) {
-      // ── Translate typed errors into HTTP responses ─────────────────────────
       if (error instanceof StockInValidationError) {
         res.status(400).json({ error: error.message });
         return;

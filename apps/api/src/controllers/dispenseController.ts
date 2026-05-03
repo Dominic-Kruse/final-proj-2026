@@ -4,7 +4,12 @@ import {
   StockOutValidationError,
   type StockOutwardPayload,
 } from "../commands/StockOutCommand";
+import {
+  UndoDispenseCommand,
+  UndoDispenseValidationError,
+} from "../commands/UndoDispenseCommand";
 import { getAuditActorContext } from "../services/auditContext";
+import { commandInvoker } from "../commands/BaseCommand";
 
 // ── Shared error helper ────────────────────────────────────────────────────────
 function handleError(res: Response, error: unknown, message: string) {
@@ -14,7 +19,7 @@ function handleError(res: Response, error: unknown, message: string) {
 
 export const dispenseController = {
 
-  // POST /api/dispense (or whatever your route is)
+  // POST /api/dispense (or /inventory/stock-outward)
   async stockOutward(req: Request, res: Response) {
     try {
       const payload: StockOutwardPayload = {
@@ -22,18 +27,41 @@ export const dispenseController = {
         actorContext: getAuditActorContext(req),
       };
 
-      // ── Delegate all logic to the command ─────────────────────────────────
-      const command = new StockOutCommand(payload);
-      const result = await command.execute();
-
+      const result = await commandInvoker.run(new StockOutCommand(payload));
       res.json(result);
     } catch (error) {
-      // ── Translate typed errors into HTTP responses ─────────────────────────
       if (error instanceof StockOutValidationError) {
         res.status(400).json({ error: error.message });
         return;
       }
       handleError(res, error, "Failed to process dispense");
+    }
+  },
+
+  // POST /api/dispense/undo/:batchId
+  async undoDispense(req: Request, res: Response) {
+    try {
+      const batchId = Number(req.params.batchId);
+      if (!Number.isFinite(batchId)) {
+        res.status(400).json({ error: "Invalid batchId" });
+        return;
+      }
+
+      const result = await commandInvoker.run(
+        new UndoDispenseCommand({
+          batchId,
+          performedBy: req.body?.performedBy,
+          actorContext: getAuditActorContext(req),
+        })
+      );
+
+      res.json(result);
+    } catch (error) {
+      if (error instanceof UndoDispenseValidationError) {
+        res.status(400).json({ error: error.message });
+        return;
+      }
+      handleError(res, error, "Failed to undo dispense");
     }
   },
 };
