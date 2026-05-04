@@ -3,8 +3,14 @@ import express from "express";
 import inventoryRoutes from "../routes/inventoryRoutes";
 import productsRoutes from "../routes/productsRoutes";
 import { db } from "../db";
-import { auditLogs, inventoryBatches, products, stockTransactions } from "../db/schema";
+import {
+  auditLogs,
+  inventoryBatches,
+  products,
+  stockTransactions,
+} from "../db/schema";
 import { and, eq } from "drizzle-orm";
+import { inventoryHub } from "../controllers/productObserver";
 
 const app = express();
 app.use(express.json());
@@ -69,8 +75,12 @@ describe("GET /inventory", () => {
   });
 
   it("supports pagination and returns limited rows", async () => {
-    await request(app).post("/products").send(makeProduct({ name: `Paginated Product A ${Date.now()}` }));
-    await request(app).post("/products").send(makeProduct({ name: `Paginated Product B ${Date.now()}` }));
+    await request(app)
+      .post("/products")
+      .send(makeProduct({ name: `Paginated Product A ${Date.now()}` }));
+    await request(app)
+      .post("/products")
+      .send(makeProduct({ name: `Paginated Product B ${Date.now()}` }));
 
     const res = await request(app).get("/inventory?page=1&limit=1");
     expect(res.status).toBe(200);
@@ -127,6 +137,30 @@ describe("POST /inventory/stock-inward", () => {
 
     expect(audit).toBeDefined();
     expect(audit?.performedBy).toBe("jest");
+  });
+
+  it("triggers an expiry notification for near-expiry batches", async () => {
+    const notifyExpirySpy = jest
+      .spyOn(inventoryHub, "notifyExpiry")
+      .mockImplementation(() => undefined);
+
+    const body = makeStockInward(seededProductId, {
+      expiryDate: "2026-06-15",
+      batchNumber: `EXPIRY-${Date.now()}`,
+    });
+
+    const res = await request(app).post("/inventory/stock-inward").send(body);
+
+    expect(res.status).toBe(201);
+    expect(notifyExpirySpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        productId: seededProductId,
+        productName: "Inventory Test Product",
+        batchId: expect.any(Number),
+      }),
+    );
+
+    notifyExpirySpy.mockRestore();
   });
 
   it("saves multiple batches in one request", async () => {
