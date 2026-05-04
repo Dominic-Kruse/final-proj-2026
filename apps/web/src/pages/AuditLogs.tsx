@@ -100,20 +100,6 @@ export function AuditLogs() {
 
   return (
     <div className="space-y-5">
-      <div className="flex justify-between items-start">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800">Audit Logs</h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Review who changed what, when it changed, and the before/after values.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-500 shadow-sm">
-          <span>Page {metadata?.currentPage ?? 1}</span>
-          <span className="text-slate-300">•</span>
-          <span>Total {metadata?.totalCount ?? 0}</span>
-        </div>
-      </div>
-
       <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-3 shadow-sm">
         <div className="text-sm text-slate-500">
           Showing <span className="font-semibold text-slate-700">{rangeLabel}</span>

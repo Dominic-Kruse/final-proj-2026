@@ -140,22 +140,14 @@ export function Dispense() {
 
     return (
         <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between shrink-0">
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-800">Dispense</h1>
-                    <p className="text-sm text-slate-500 mt-1">
-                        Select medicine batches and prepare outgoing stock
-                    </p>
-                </div>
-            </div>
-
             {/* Search */}
-            <div className="w-full max-w-2xl shrink-0">
-                <SearchBar
-                    placeholder="Search by medicine name, generic name, or batch..."
-                    onSearch={(q) => setSearchInput(q)}
-                />
+            <div className="w-full flex justify-center">
+                <div className="w-full max-w-2xl">
+                    <SearchBar
+                        placeholder="Search by medicine name, generic name, or batch..."
+                        onSearch={(q) => setSearchInput(q)}
+                    />
+                </div>
             </div>
 
             {/* Sort filter chips — decorator toggles */}

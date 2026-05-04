@@ -85,10 +85,7 @@ export function Dashboard() {
 
     return (
         <>
-            <div className="flex justify-between items-center mb-8">
-                <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
-                <div className="h-10 w-64 bg-white border border-slate-200 rounded-lg"></div>
-            </div>
+            
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                 <StatCard

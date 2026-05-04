@@ -109,30 +109,30 @@ export function Inventory() {
 
     return (
         <div className="space-y-5">
-            {/* Page header */}
-            <div className="flex justify-between items-start">
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-800">Inventory</h1>
-                    <p className="text-sm text-slate-500 mt-1">Track medicines, batches, and stock levels</p>
-                </div>
-                <div className="flex items-center gap-2">
-                    <button className="px-3 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-slate-600 shadow-sm">
-                        Export CSV
-                    </button>
-                    <button
-                        onClick={() => { setShowAddProduct(true); setErrorMessage(""); }}
-                        className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs font-semibold shadow-sm flex items-center gap-1.5"
-                    >
-                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                            <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                        </svg>
-                        Add product
-                    </button>
-                </div>
+            {/* Action buttons */}
+            <div className="flex justify-end items-center gap-2">
+                <button className="px-3 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-slate-600 shadow-sm">
+                    Export CSV
+                </button>
+                <button
+                    onClick={() => { setShowAddProduct(true); setErrorMessage(""); }}
+                    className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs font-semibold shadow-sm flex items-center gap-1.5"
+                >
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                        <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                    </svg>
+                    Add product
+                </button>
             </div>
 
-            {/* Stock summary chips */}
-            <div className="flex gap-3 flex-wrap">
+            {/* Search */}
+            <SearchBar
+                placeholder="Search by medicine name or generic name..."
+                onSearch={(q) => setSearchInput(q)}
+            />
+
+            {/* Stock summary and filter chips combined */}
+            <div className="flex gap-3 flex-wrap items-center">
                 <div className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-xl shadow-sm text-xs">
                     <span className="w-2 h-2 rounded-full bg-emerald-400" />
                     <span className="font-semibold text-slate-700">{totalStockCounts.inStock}</span>
@@ -148,16 +148,11 @@ export function Inventory() {
                     <span className="font-semibold text-red-700">{totalStockCounts.outOfStock}</span>
                     <span className="text-slate-400">Out of stock</span>
                 </div>
+                <div className="h-5 w-px bg-slate-200" />
+                <div className="flex-1">
+                    <SortFilterChips activeFilters={activeFilters} onToggle={toggleFilter} />
+                </div>
             </div>
-
-            {/* Search */}
-            <SearchBar
-                placeholder="Search by medicine name or generic name..."
-                onSearch={(q) => setSearchInput(q)}
-            />
-
-            {/* Sort filter chips */}
-            <SortFilterChips activeFilters={activeFilters} onToggle={toggleFilter} />
 
             {isFetching && (
                 <p className="text-xs text-slate-400">Updating results...</p>
