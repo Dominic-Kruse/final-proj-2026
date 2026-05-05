@@ -17,7 +17,6 @@ app.use(express.json());
 app.use("/inventory", inventoryRoutes);
 app.use("/products", productsRoutes);
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
 let seededProductId: number;
 
 const makeProduct = (overrides = {}) => ({
@@ -47,7 +46,6 @@ const makeStockInward = (productId: number, batchOverrides = {}) => ({
   performedBy: "jest",
 });
 
-// ── Setup / Teardown ───────────────────────────────────────────────────────────
 beforeAll(async () => {
   const res = await request(app).post("/products").send(makeProduct());
   seededProductId = res.body.id;
@@ -60,7 +58,6 @@ afterAll(async () => {
   await db.delete(products);
 });
 
-// ── Tests ──────────────────────────────────────────────────────────────────────
 describe("GET /inventory", () => {
   it("returns 200 with metadata and data array", async () => {
     const res = await request(app).get("/inventory");
@@ -220,5 +217,196 @@ describe("POST /inventory/stock-inward", () => {
     const body = makeStockInward(seededProductId, { batchNumber: "" });
     const res = await request(app).post("/inventory/stock-inward").send(body);
     expect(res.status).toBe(400);
+  });
+});
+
+describe("POST /inventory/stock-outward", () => {
+  it("dispenses stock and records transaction and audit data", async () => {
+    const created = await request(app)
+      .post("/inventory/stock-inward")
+      .send(
+        makeStockInward(seededProductId, {
+          batchNumber: `OUT-${Date.now()}`,
+          quantity: 50,
+        }),
+      );
+
+    expect(created.status).toBe(201);
+    const batchId = created.body.batches[0].id;
+
+    const res = await request(app)
+      .post("/inventory/stock-outward")
+      .send({
+        items: [
+          {
+            batchId,
+            quantity: 20,
+            reason: "Customer purchase",
+          },
+        ],
+        performedBy: "jest",
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.message).toBe("Dispensed 1 batch(es) successfully.");
+    expect(res.body.dispensedBatchIds).toContain(batchId);
+
+    const [batch] = await db
+      .select()
+      .from(inventoryBatches)
+      .where(eq(inventoryBatches.id, batchId))
+      .limit(1);
+
+    expect(batch.currentQuantity).toBe(30);
+    expect(batch.status).toBe("available");
+
+    const [transaction] = await db
+      .select()
+      .from(stockTransactions)
+      .where(
+        and(
+          eq(stockTransactions.batchId, batchId),
+          eq(stockTransactions.type, "outward"),
+        ),
+      )
+      .limit(1);
+
+    expect(transaction).toBeDefined();
+    expect(transaction?.quantityChanged).toBe(-20);
+    expect(transaction?.reason).toBe("Customer purchase");
+    expect(transaction?.performedBy).toBe("jest");
+
+    const [audit] = await db
+      .select()
+      .from(auditLogs)
+      .where(
+        and(
+          eq(auditLogs.entityType, "inventory_batch"),
+          eq(auditLogs.entityId, batchId),
+          eq(auditLogs.action, "stock_outward"),
+        ),
+      )
+      .limit(1);
+
+    expect(audit).toBeDefined();
+  });
+
+  it("marks a batch as dispensed when all stock is taken out", async () => {
+    const created = await request(app)
+      .post("/inventory/stock-inward")
+      .send(
+        makeStockInward(seededProductId, {
+          batchNumber: `FULL-OUT-${Date.now()}`,
+          quantity: 10,
+        }),
+      );
+
+    const batchId = created.body.batches[0].id;
+
+    const res = await request(app)
+      .post("/inventory/stock-outward")
+      .send({
+        items: [
+          {
+            batchId,
+            quantity: 10,
+            reason: "Full dispense",
+          },
+        ],
+        performedBy: "jest",
+      });
+
+    expect(res.status).toBe(200);
+
+    const [batch] = await db
+      .select()
+      .from(inventoryBatches)
+      .where(eq(inventoryBatches.id, batchId))
+      .limit(1);
+
+    expect(batch.currentQuantity).toBe(0);
+    expect(batch.status).toBe("dispensed");
+
+    const getRes = await request(app).get(`/inventory/${batchId}`);
+    expect(getRes.status).toBe(404);
+  });
+
+  it("returns 400 when items array is empty", async () => {
+    const res = await request(app)
+      .post("/inventory/stock-outward")
+      .send({
+        items: [],
+        performedBy: "jest",
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/at least one item/i);
+  });
+
+  it("returns 400 when reason is missing", async () => {
+    const created = await request(app)
+      .post("/inventory/stock-inward")
+      .send(
+        makeStockInward(seededProductId, {
+          batchNumber: `NO-REASON-${Date.now()}`,
+          quantity: 10,
+        }),
+      );
+
+    const batchId = created.body.batches[0].id;
+
+    const res = await request(app)
+      .post("/inventory/stock-outward")
+      .send({
+        items: [
+          {
+            batchId,
+            quantity: 1,
+            reason: "",
+          },
+        ],
+        performedBy: "jest",
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/reason is required/i);
+  });
+
+  it("returns 400 when requested quantity exceeds available stock", async () => {
+    const created = await request(app)
+      .post("/inventory/stock-inward")
+      .send(
+        makeStockInward(seededProductId, {
+          batchNumber: `OVER-OUT-${Date.now()}`,
+          quantity: 10,
+        }),
+      );
+
+    const batchId = created.body.batches[0].id;
+
+    const res = await request(app)
+      .post("/inventory/stock-outward")
+      .send({
+        items: [
+          {
+            batchId,
+            quantity: 11,
+            reason: "Over dispense",
+          },
+        ],
+        performedBy: "jest",
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/insufficient stock/i);
+
+    const [batch] = await db
+      .select()
+      .from(inventoryBatches)
+      .where(eq(inventoryBatches.id, batchId))
+      .limit(1);
+
+    expect(batch.currentQuantity).toBe(10);
+    expect(batch.status).toBe("available");
   });
 });
