@@ -1,6 +1,6 @@
 import { db } from "../db";
-import { products } from "../db/schema";
-import { eq, ilike, or, sql } from "drizzle-orm";
+import { products, inventoryBatches, stockTransactions } from "../db/schema";
+import { eq, ilike, or, sql, inArray } from "drizzle-orm";
 import { Request, Response } from "express";
 import { getAuditActorContext } from "../services/auditContext";
 import { logAuditEvent } from "../services/auditService";
@@ -164,6 +164,12 @@ export const productsController = {
         requiresColdChain, reorderLevel,
       } = req.body;
 
+      if (typeof name === "string" && !name.trim()) {
+        res.status(400).json({ error: "Product name cannot be empty" });
+        return;
+      }
+
+
       const [updated] = await db.transaction(async (tx) => {
         const [existing] = await tx
           .select()
@@ -178,23 +184,42 @@ export const productsController = {
         const [saved] = await tx
           .update(products)
           .set({
-            sku, name, genericName, description,
-            category, form, baseUnit, packageUnit,
-            conversionFactor, isPrescriptionRequired,
-            requiresColdChain, reorderLevel,
+            sku,
+            name: typeof name === "string" ? name.trim() : name,
+            genericName,
+            description,
+            category,
+            form,
+            baseUnit,
+            packageUnit,
+            conversionFactor,
+            isPrescriptionRequired,
+            requiresColdChain,
+            reorderLevel,
             updatedAt: new Date(),
           })
+
           .where(eq(products.id, id))
           .returning();
+        
+        const submittedFields = Object.keys(req.body ?? {}).filter(
+          (key) => key !== "performedBy",
+        );
+        const isRenameOnly =
+          submittedFields.length === 1 &&
+          submittedFields[0] === "name" &&
+          existing.name !== saved.name;
+
 
         await logAuditEvent(tx, {
-          action: "update",
+          action: isRenameOnly ? "rename" : "update",
           entityType: "product",
           entityId: id,
           oldValues: existing,
           newValues: saved,
           context: actorContext,
         });
+
 
         return [saved];
       });
@@ -211,49 +236,75 @@ export const productsController = {
   },
 
   async deleteProduct(req: Request, res: Response) {
-    try {
-      const actorContext = getAuditActorContext(req);
-      const id = Number(req.params.id);
-      if (!Number.isFinite(id)) {
-        res.status(400).json({ error: "Invalid product ID" });
-        return;
+  try {
+    const actorContext = getAuditActorContext(req);
+    const id = Number(req.params.id);
+
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ error: "Invalid product ID" });
+      return;
+    }
+
+    const [deleted] = await db.transaction(async (tx) => {
+      const [existing] = await tx
+        .select()
+        .from(products)
+        .where(eq(products.id, id))
+        .limit(1);
+
+      if (!existing) {
+        return [undefined];
       }
 
-      const [deleted] = await db.transaction(async (tx) => {
-        const [existing] = await tx
-          .select()
-          .from(products)
-          .where(eq(products.id, id))
-          .limit(1);
+      const batchesToDelete = await tx
+        .select()
+        .from(inventoryBatches)
+        .where(eq(inventoryBatches.productId, id));
 
-        if (!existing) {
-          return [undefined];
-        }
+      const batchIds = batchesToDelete.map((batch) => batch.id);
 
-        const [removed] = await tx
-          .delete(products)
-          .where(eq(products.id, id))
-          .returning();
+      if (batchIds.length > 0) {
+        await tx
+          .update(stockTransactions)
+          .set({ batchId: null })
+          .where(inArray(stockTransactions.batchId, batchIds));
 
-        await logAuditEvent(tx, {
-          action: "delete",
-          entityType: "product",
-          entityId: id,
-          oldValues: existing,
-          context: actorContext,
-        });
+        await tx
+          .delete(inventoryBatches)
+          .where(eq(inventoryBatches.productId, id));
+      }
 
-        return [removed];
+      const [removed] = await tx
+        .delete(products)
+        .where(eq(products.id, id))
+        .returning();
+
+      await logAuditEvent(tx, {
+        action: "delete",
+        entityType: "product",
+        entityId: id,
+        oldValues: {
+          ...existing,
+          deletedBatches: batchesToDelete,
+        },
+        context: actorContext,
       });
 
-      if (!deleted) {
-        res.status(404).json({ error: "Product not found" });
-        return;
-      }
+      return [removed];
+    });
 
-      res.json({ message: "Product deleted successfully", product: deleted });
-    } catch (error) {
-      handleError(res, error, "Failed to delete product");
+    if (!deleted) {
+      res.status(404).json({ error: "Product not found" });
+      return;
     }
-  },
+
+    res.json({
+      message: "Product deleted successfully",
+      product: deleted,
+    });
+  } catch (error) {
+    handleError(res, error, "Failed to delete product");
+  }
+},
+
 };

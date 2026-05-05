@@ -230,4 +230,130 @@ describe("Products API", () => {
     expect(response.status).toBe(400);
     expect(response.body.error).toBe("Invalid product ID");
   });
+  
+  it("PUT /products/:id logs rename when only product name changes", async () => {
+  const createRes = await request(app).post("/products").send({
+    sku: "RENAME123",
+    name: "Rename Original",
+    genericName: "Rename Generic",
+    baseUnit: "Tablet",
+  });
+
+  const productId = createRes.body.id;
+
+  const renameRes = await request(app)
+    .put(`/products/${productId}`)
+    .send({ name: "Rename Updated" });
+
+  expect(renameRes.status).toBe(200);
+  expect(renameRes.body.name).toBe("Rename Updated");
+
+  const [audit] = await db
+    .select()
+    .from(auditLogs)
+    .where(
+      and(
+        eq(auditLogs.entityType, "product"),
+        eq(auditLogs.entityId, productId),
+        eq(auditLogs.action, "rename"),
+      ),
+    )
+    .limit(1);
+
+  expect(audit).toBeDefined();
+  expect(audit?.oldValues).toContain("Rename Original");
+  expect(audit?.newValues).toContain("Rename Updated");
+});
+
+it("PUT /products/:id rejects an empty product name", async () => {
+  const createRes = await request(app).post("/products").send({
+    sku: "EMPTYNAME123",
+    name: "Empty Name Original",
+    genericName: "Empty Name Generic",
+    baseUnit: "Tablet",
+  });
+
+  const response = await request(app)
+    .put(`/products/${createRes.body.id}`)
+    .send({ name: "   " });
+
+  expect(response.status).toBe(400);
+  expect(response.body.error).toBe("Product name cannot be empty");
+});
+
+it("DELETE /products/:id deletes product batches and preserves stock transactions", async () => {
+  const createRes = await request(app).post("/products").send({
+    sku: "CASCADE123",
+    name: "Cascade Delete Product",
+    genericName: "Cascade Generic",
+    baseUnit: "Tablet",
+  });
+
+  const productId = createRes.body.id;
+
+  const [batch] = await db
+    .insert(inventoryBatches)
+    .values({
+      productId,
+      batchNumber: `CASCADE-BATCH-${Date.now()}`,
+      inventoryLocation: "Cascade Shelf",
+      expiryDate: "2027-12-31",
+      initialQuantity: 12,
+      currentQuantity: 12,
+      costPrice: "5.00",
+      sellingPrice: "8.00",
+      status: "available",
+    })
+    .returning();
+
+  const [transaction] = await db
+    .insert(stockTransactions)
+    .values({
+      batchId: batch.id,
+      type: "restock",
+      quantityChanged: 12,
+      reason: "cascade delete test",
+      performedBy: "jest",
+    })
+    .returning();
+
+  const deleteRes = await request(app).delete(`/products/${productId}`);
+
+  expect(deleteRes.status).toBe(200);
+  expect(deleteRes.body.message).toBe("Product deleted successfully");
+
+  const remainingBatches = await db
+    .select()
+    .from(inventoryBatches)
+    .where(eq(inventoryBatches.productId, productId));
+
+  expect(remainingBatches).toHaveLength(0);
+
+  const [preservedTransaction] = await db
+    .select()
+    .from(stockTransactions)
+    .where(eq(stockTransactions.id, transaction.id))
+    .limit(1);
+
+  expect(preservedTransaction).toBeDefined();
+  expect(preservedTransaction?.batchId).toBeNull();
+
+  const [audit] = await db
+    .select()
+    .from(auditLogs)
+    .where(
+      and(
+        eq(auditLogs.entityType, "product"),
+        eq(auditLogs.entityId, productId),
+        eq(auditLogs.action, "delete"),
+      ),
+    )
+    .limit(1);
+
+  expect(audit).toBeDefined();
+  expect(audit?.oldValues).toContain("Cascade Delete Product");
+  expect(audit?.oldValues).toContain(batch.batchNumber);
+});
+
+
 });

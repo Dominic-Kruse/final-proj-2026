@@ -1,7 +1,6 @@
 import { Fragment, useState } from "react";
 import { ChevronDown } from "lucide-react";
-
-// ── Types ─────────────────────────────────────────────────────────────────────
+import { ProductEditModal } from "./ProductEditModal";
 
 export type ProductBatch = {
   batchNumber: string;
@@ -33,40 +32,50 @@ type InventoryTableProps = {
   products?: ProductCatalogItem[];
   mode?: "view" | "dispense";
   onAddBatch?: (product: ProductCatalogItem, batch: ProductBatch) => void;
+  onRenameProduct?: (product: ProductCatalogItem, name: string) => Promise<void> | void;
+  onDeleteProduct?: (product: ProductCatalogItem) => Promise<void> | void;
+  mutatingProductId?: number | null;
   title?: string;
   emptyTitle?: string;
   emptySubtitle?: string;
 };
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function daysLeft(expiryDate: string) {
   return Math.ceil((new Date(expiryDate).getTime() - Date.now()) / 86400000);
 }
 
 function fmt(n: number) {
-  return `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `₱${n.toLocaleString("en-PH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 function ExpiryBadge({ days }: { days: number }) {
-  if (days <= 0)
+  if (days <= 0) {
     return (
       <span className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-800 border border-red-200">
         Expired
       </span>
     );
-  if (days <= 90)
+  }
+
+  if (days <= 90) {
     return (
       <span className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
         {days}d left
       </span>
     );
-  if (days <= 180)
+  }
+
+  if (days <= 180) {
     return (
       <span className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold bg-yellow-50 text-yellow-800 border border-yellow-200">
         {days}d left
       </span>
     );
+  }
+
   return (
     <span className="inline-flex px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
       {days}d left
@@ -90,6 +99,7 @@ function StatusPill({ status }: { status: ProductCatalogItem["status"] }) {
     },
   };
   const { cls, dot } = map[status];
+
   return (
     <span
       className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${cls}`}
@@ -100,20 +110,32 @@ function StatusPill({ status }: { status: ProductCatalogItem["status"] }) {
   );
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
-
 export function InventoryTable({
   products = [],
   mode = "view",
   onAddBatch,
+  onRenameProduct,
+  onDeleteProduct,
+  mutatingProductId = null,
   title,
   emptyTitle = "No products found",
   emptySubtitle = "Add a product or complete a stock inward to get started.",
 }: InventoryTableProps) {
   const [expandedProduct, setExpandedProduct] = useState<number | null>(null);
+  const [editingProduct, setEditingProduct] = useState<ProductCatalogItem | null>(null);
+  const [draftName, setDraftName] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [actionError, setActionError] = useState("");
 
   const resolvedTitle =
     title ?? (mode === "dispense" ? "Select medicine" : "Inventory master");
+
+  const closeEditModal = () => {
+    setEditingProduct(null);
+    setDraftName("");
+    setDeleteConfirm(false);
+    setActionError("");
+  };
 
   if (products.length === 0) {
     return (
@@ -148,6 +170,26 @@ export function InventoryTable({
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      {editingProduct && (
+        <ProductEditModal
+          product={editingProduct}
+          draftName={draftName}
+          deleteConfirm={deleteConfirm}
+          errorMessage={actionError}
+          isMutating={mutatingProductId === editingProduct.productId}
+          onDraftNameChange={setDraftName}
+          onDeleteConfirmChange={setDeleteConfirm}
+          onErrorChange={setActionError}
+          onClose={closeEditModal}
+          onRename={async (product, name) => {
+            await onRenameProduct?.(product, name);
+          }}
+          onDelete={async (product) => {
+            await onDeleteProduct?.(product);
+          }}
+        />
+      )}
+
       <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-2.5">
         <h2 className="text-sm font-bold text-slate-800">{resolvedTitle}</h2>
         <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">
@@ -192,17 +234,16 @@ export function InventoryTable({
           <tbody className="divide-y divide-slate-100">
             {products.map((product) => {
               const isExpanded = expandedProduct === product.productId;
-              const batchDays = product.batches.map((b) =>
-                daysLeft(b.expiryDate),
+              const batchDays = product.batches.map((batch) =>
+                daysLeft(batch.expiryDate),
               );
-              const hasExpired = batchDays.some((d) => d <= 0);
+              const hasExpired = batchDays.some((days) => days <= 0);
               const hasNearExpiry =
-                !hasExpired && batchDays.some((d) => d <= 90);
+                !hasExpired && batchDays.some((days) => days <= 90);
               const availableCount = product.batches.filter(
-                (b) => daysLeft(b.expiryDate) > 0,
+                (batch) => daysLeft(batch.expiryDate) > 0,
               ).length;
 
-              // Unit display
               const unitLabel = product.packageUnit
                 ? `${product.conversionFactor} ${product.baseUnit}s / ${product.packageUnit}`
                 : product.baseUnit;
@@ -215,7 +256,6 @@ export function InventoryTable({
                       setExpandedProduct(isExpanded ? null : product.productId)
                     }
                   >
-                    {/* Product + unit */}
                     <td className="px-5 py-3" style={{ width: "18%" }}>
                       <p className="font-bold text-slate-900 leading-tight">
                         {product.productDetails}
@@ -235,7 +275,6 @@ export function InventoryTable({
                       )}
                     </td>
 
-                    {/* Generic + form */}
                     <td className="px-3 py-3" style={{ width: "19%" }}>
                       <p className="text-slate-700 leading-tight">
                         {product.genericName}
@@ -252,14 +291,12 @@ export function InventoryTable({
                       )}
                     </td>
 
-                    {/* Category */}
                     <td className="px-3 py-3" style={{ width: "11%" }}>
                       <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-slate-100 text-slate-600 border border-slate-200">
                         {product.category}
                       </span>
                     </td>
 
-                    {/* Total stock */}
                     <td
                       className="px-3 py-3 text-right"
                       style={{ width: "10%" }}
@@ -272,7 +309,6 @@ export function InventoryTable({
                       </span>
                     </td>
 
-                    {/* Shelf */}
                     <td
                       className="px-3 py-3 text-center"
                       style={{ width: "7%" }}
@@ -282,7 +318,6 @@ export function InventoryTable({
                       </span>
                     </td>
 
-                    {/* Batch count */}
                     <td
                       className="px-3 py-3 text-center"
                       style={{ width: "7%" }}
@@ -295,26 +330,33 @@ export function InventoryTable({
                       </span>
                     </td>
 
-                    {/* Status */}
                     <td className="px-3 py-3" style={{ width: "12%" }}>
                       <StatusPill status={product.status} />
                     </td>
 
-                    {/* Actions */}
                     <td
                       className="px-5 py-3 text-right"
                       style={{ width: "16%" }}
-                      onClick={(e) => e.stopPropagation()}
+                      onClick={(event) => event.stopPropagation()}
                     >
                       <div className="inline-flex items-center gap-1.5">
                         {mode === "view" && (
-                          <button className="px-2.5 py-1.5 text-xs font-bold border border-slate-300 rounded-lg hover:bg-slate-100 text-slate-800 transition-colors">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingProduct(product);
+                              setDraftName(product.productDetails);
+                              setDeleteConfirm(false);
+                              setActionError("");
+                            }}
+                            className="px-2.5 py-1.5 text-xs font-bold border border-slate-300 rounded-lg hover:bg-slate-100 text-slate-800 transition-colors"
+                          >
                             Edit
                           </button>
                         )}
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
+                          onClick={(event) => {
+                            event.stopPropagation();
                             setExpandedProduct(
                               isExpanded ? null : product.productId,
                             );
@@ -337,7 +379,6 @@ export function InventoryTable({
                     </td>
                   </tr>
 
-                  {/* ── Expanded batch sub-table ── */}
                   {isExpanded && (
                     <tr>
                       <td
@@ -399,8 +440,6 @@ export function InventoryTable({
                                   const days = daysLeft(batch.expiryDate);
                                   const expired = days <= 0;
                                   const near = !expired && days <= 90;
-
-                                  // ✅ FIX: % of total product stock, not relative to largest batch
                                   const pct =
                                     product.totalStock > 0
                                       ? Math.round(
@@ -415,26 +454,19 @@ export function InventoryTable({
                                       key={batch.batchNumber}
                                       className={`transition-colors ${expired ? "bg-red-50/60" : near ? "bg-amber-50/30" : "hover:bg-slate-50"}`}
                                     >
-                                      {/* Batch no. */}
                                       <td className="px-4 py-2.5">
                                         <span className="font-mono font-bold text-slate-800">
                                           {batch.batchNumber}
                                         </span>
                                       </td>
-
-                                      {/* Supplier */}
                                       <td className="px-4 py-2.5 text-slate-500">
                                         {batch.supplier}
                                       </td>
-
-                                      {/* Location */}
                                       <td className="px-4 py-2.5">
                                         <span className="font-mono text-[11px] font-semibold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
                                           {batch.location || "—"}
                                         </span>
                                       </td>
-
-                                      {/* Expiry */}
                                       <td className="px-4 py-2.5">
                                         <span
                                           className={`font-semibold ${expired ? "text-red-700" : near ? "text-amber-700" : "text-slate-700"}`}
@@ -442,13 +474,9 @@ export function InventoryTable({
                                           {batch.expiryDate}
                                         </span>
                                       </td>
-
-                                      {/* Days left */}
                                       <td className="px-4 py-2.5">
                                         <ExpiryBadge days={days} />
                                       </td>
-
-                                      {/* Quantity */}
                                       <td className="px-4 py-2.5 text-right">
                                         <span className="font-bold text-slate-800">
                                           {batch.quantity.toLocaleString()}
@@ -457,8 +485,6 @@ export function InventoryTable({
                                           {product.baseUnit}s
                                         </span>
                                       </td>
-
-                                      {/* Share of stock bar — % of total product stock */}
                                       <td className="px-4 py-2.5">
                                         <div className="flex items-center gap-1.5">
                                           <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden shrink-0">
@@ -472,8 +498,6 @@ export function InventoryTable({
                                           </span>
                                         </div>
                                       </td>
-
-                                      {/* Cost price */}
                                       <td className="px-4 py-2.5 text-right">
                                         <span className="font-semibold text-slate-700">
                                           {fmt(batch.costPrice)}
@@ -482,8 +506,6 @@ export function InventoryTable({
                                           / {product.baseUnit}
                                         </span>
                                       </td>
-
-                                      {/* Sell price */}
                                       <td className="px-4 py-2.5 text-right">
                                         <span className="font-bold text-emerald-700">
                                           {fmt(batch.sellingPrice)}
@@ -493,12 +515,11 @@ export function InventoryTable({
                                         </span>
                                       </td>
 
-                                      {/* Dispense */}
                                       {mode === "dispense" && (
                                         <td className="px-4 py-2.5 text-right">
                                           <button
-                                            onClick={(e) => {
-                                              e.stopPropagation();
+                                            onClick={(event) => {
+                                              event.stopPropagation();
                                               onAddBatch?.(product, batch);
                                             }}
                                             disabled={
