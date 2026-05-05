@@ -73,9 +73,9 @@ export function Inventory() {
   });
 
   const mutatingProductId = renameProductMutation.isPending
-    ? renameProductMutation.variables?.id ?? null
+    ? (renameProductMutation.variables?.id ?? null)
     : deleteProductMutation.isPending
-      ? deleteProductMutation.variables ?? null
+      ? (deleteProductMutation.variables ?? null)
       : null;
 
   const normalizedCatalog = useMemo(
@@ -113,7 +113,9 @@ export function Inventory() {
       .trim()
       .toLowerCase();
 
-    if (normalizedCatalog.has(`${trimmedName.toLowerCase()}|${normalizedGeneric}`)) {
+    if (
+      normalizedCatalog.has(`${trimmedName.toLowerCase()}|${normalizedGeneric}`)
+    ) {
       setErrorMessage("This product already exists in the catalog.");
       return;
     }
@@ -154,9 +156,6 @@ export function Inventory() {
   return (
     <div className="space-y-5">
       <div className="flex justify-end items-center gap-2">
-        <button className="px-3 py-2 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-xs font-semibold text-slate-600 shadow-sm">
-          Export CSV
-        </button>
         <button
           onClick={() => {
             setShowAddProduct(true);
