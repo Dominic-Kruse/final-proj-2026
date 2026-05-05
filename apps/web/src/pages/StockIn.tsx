@@ -9,9 +9,15 @@ import { DraftList } from "../components/stockin/DraftList";
 import { SummaryPanel } from "../components/stockin/SummaryPanel";
 import { AddProductDrawer } from "../components/stockin/AddProductDrawer";
 import { DEFAULT_DATE } from "../components/stockin/types";
-import type { StockInBatchDraft, PendingBatch } from "../components/stockin/types";
+import type {
+  StockInBatchDraft,
+  PendingBatch,
+} from "../components/stockin/types";
 
-function splitGenericAndDosage(value: string): { genericName: string; dosage: string } {
+function splitGenericAndDosage(value: string): {
+  genericName: string;
+  dosage: string;
+} {
   const raw = value.trim();
   const firstDigitIndex = raw.search(/\d/);
 
@@ -25,7 +31,10 @@ function splitGenericAndDosage(value: string): { genericName: string; dosage: st
   };
 }
 
-function buildEnteredDosage(strengthValue: string, strengthUnit: string): string {
+function buildEnteredDosage(
+  strengthValue: string,
+  strengthUnit: string,
+): string {
   const value = strengthValue.trim();
   if (!value) return "";
   return `${value}${strengthUnit}`.toLowerCase();
@@ -58,7 +67,7 @@ export function StockIn() {
   const [strengthValue, setStrengthValue] = useState("");
   const [strengthUnit, setStrengthUnit] = useState("mg");
   const [category, setCategory] = useState("");
-  const [form, setForm] = useState("Tablet");
+  const [form, setForm] = useState("");
   const [baseUnit, setBaseUnit] = useState("Tablet");
   const [packageUnit, setPackageUnit] = useState("Box");
   const [conversionFactor, setConversionFactor] = useState(100);
@@ -81,27 +90,52 @@ export function StockIn() {
   const hasPackage = !!packageUnit;
   const totalBaseUnits = hasPackage ? parsedQty * conversionFactor : parsedQty;
 
-  const summary = useMemo(() => ({
-    totalUnits: draftBatches.reduce((s, b) => s + b.totalBaseUnits, 0),
-    totalCost: draftBatches.reduce((s, b) => s + b.totalBaseUnits * b.unitCost, 0),
-    totalRetail: draftBatches.reduce((s, b) => s + b.totalBaseUnits * b.sellingPrice, 0),
-  }), [draftBatches]);
+  const summary = useMemo(
+    () => ({
+      totalUnits: draftBatches.reduce((s, b) => s + b.totalBaseUnits, 0),
+      totalCost: draftBatches.reduce(
+        (s, b) => s + b.totalBaseUnits * b.unitCost,
+        0,
+      ),
+      totalRetail: draftBatches.reduce(
+        (s, b) => s + b.totalBaseUnits * b.sellingPrice,
+        0,
+      ),
+    }),
+    [draftBatches],
+  );
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   const resetBatch = () => {
-    setProductName(""); setGenericName(""); setStrengthValue("");
-    setStrengthUnit("mg"); setCategory(""); setForm("Tablet");
-    setBaseUnit("Tablet"); setPackageUnit("Box"); setConversionFactor(100);
-    setBatchNumber(""); setExpiryDate(""); setInventoryLocation("");
-    setQuantityPackages(""); setUnitCost(""); setSellingPrice("");
+    setProductName("");
+    setGenericName("");
+    setStrengthValue("");
+    setStrengthUnit("mg");
+    setCategory("");
+    setForm("Tablet");
+    setBaseUnit("Tablet");
+    setPackageUnit("Box");
+    setConversionFactor(100);
+    setBatchNumber("");
+    setExpiryDate("");
+    setInventoryLocation("");
+    setQuantityPackages("");
+    setUnitCost("");
+    setSellingPrice("");
   };
 
   const buildPendingBatch = (): PendingBatch => ({
     productName: productName.trim(),
     genericName: genericName.trim(),
-    strengthValue, strengthUnit, category, form,
-    baseUnit, packageUnit, conversionFactor,
-    batchNumber: batchNumber.trim(), expiryDate,
+    strengthValue,
+    strengthUnit,
+    category,
+    form,
+    baseUnit,
+    packageUnit,
+    conversionFactor,
+    batchNumber: batchNumber.trim(),
+    expiryDate,
     inventoryLocation: inventoryLocation.trim(),
     quantityPackages: parsedQty || 0,
     totalBaseUnits: totalBaseUnits || 0,
@@ -115,10 +149,20 @@ export function StockIn() {
     setSaveMessage("");
 
     if (!supplier.trim() || !referenceNumber.trim() || !dateReceived) {
-      setErrorMessage("Complete the inward header (supplier, reference, date) first.");
+      setErrorMessage(
+        "Complete the inward header (supplier, reference, date) first.",
+      );
       return;
     }
-    if (!productName.trim() || !genericName.trim() || !batchNumber.trim() || !expiryDate || !quantityPackages || !unitCost || !sellingPrice) {
+    if (
+      !productName.trim() ||
+      !genericName.trim() ||
+      !batchNumber.trim() ||
+      !expiryDate ||
+      !quantityPackages ||
+      !unitCost ||
+      !sellingPrice
+    ) {
       setErrorMessage("Please complete all required batch fields.");
       return;
     }
@@ -132,11 +176,20 @@ export function StockIn() {
     }
     const parsedCost = Number(unitCost);
     const parsedSell = Number(sellingPrice);
-    if (!Number.isFinite(parsedCost) || parsedCost <= 0 || !Number.isFinite(parsedSell) || parsedSell <= 0) {
+    if (
+      !Number.isFinite(parsedCost) ||
+      parsedCost <= 0 ||
+      !Number.isFinite(parsedSell) ||
+      parsedSell <= 0
+    ) {
       setErrorMessage("Cost and selling price must be positive numbers.");
       return;
     }
-    if (draftBatches.some((b) => b.batchNumber.toLowerCase() === batchNumber.trim().toLowerCase())) {
+    if (
+      draftBatches.some(
+        (b) => b.batchNumber.toLowerCase() === batchNumber.trim().toLowerCase(),
+      )
+    ) {
       setErrorMessage("Batch number already exists in the draft.");
       return;
     }
@@ -163,7 +216,12 @@ export function StockIn() {
 
     setDraftBatches((prev) => [
       ...prev,
-      { ...buildPendingBatch(), productId: matchedProduct.id, unitCost: parsedCost, sellingPrice: parsedSell },
+      {
+        ...buildPendingBatch(),
+        productId: matchedProduct.id,
+        unitCost: parsedCost,
+        sellingPrice: parsedSell,
+      },
     ]);
     setErrorMessage("");
     resetBatch();
@@ -202,7 +260,9 @@ export function StockIn() {
           inventoryLocation: b.inventoryLocation || undefined,
         })),
       });
-      setSaveMessage(`Saved ${draftBatches.length} batch(es) from ${supplier.trim()} (ref: ${referenceNumber.trim()}).`);
+      setSaveMessage(
+        `Saved ${draftBatches.length} batch(es) from ${supplier.trim()} (ref: ${referenceNumber.trim()}).`,
+      );
       setDraftBatches([]);
       resetBatch();
     } catch {
@@ -215,46 +275,71 @@ export function StockIn() {
       {showDrawer && pendingBatch && (
         <AddProductDrawer
           pending={pendingBatch}
-          onClose={() => { setShowDrawer(false); setPendingBatch(null); }}
+          onClose={() => {
+            setShowDrawer(false);
+            setPendingBatch(null);
+          }}
           onSaved={handleDrawerSaved}
         />
       )}
 
-
       <InwardHeader
-        supplier={supplier} setSupplier={setSupplier}
-        referenceNumber={referenceNumber} setReferenceNumber={setReferenceNumber}
-        dateReceived={dateReceived} setDateReceived={setDateReceived}
+        supplier={supplier}
+        setSupplier={setSupplier}
+        referenceNumber={referenceNumber}
+        setReferenceNumber={setReferenceNumber}
+        dateReceived={dateReceived}
+        setDateReceived={setDateReceived}
         onClearError={() => setErrorMessage("")}
       />
 
       <BatchEntryForm
-        productName={productName} setProductName={setProductName}
-        genericName={genericName} setGenericName={setGenericName}
-        strengthValue={strengthValue} setStrengthValue={setStrengthValue}
-        strengthUnit={strengthUnit} setStrengthUnit={setStrengthUnit}
-        category={category} setCategory={setCategory}
-        form={form} setForm={setForm}
-        baseUnit={baseUnit} setBaseUnit={setBaseUnit}
-        packageUnit={packageUnit} setPackageUnit={setPackageUnit}
-        conversionFactor={conversionFactor} setConversionFactor={setConversionFactor}
-        batchNumber={batchNumber} setBatchNumber={setBatchNumber}
-        expiryDate={expiryDate} setExpiryDate={setExpiryDate}
-        inventoryLocation={inventoryLocation} setInventoryLocation={setInventoryLocation}
-        quantityPackages={quantityPackages} setQuantityPackages={setQuantityPackages}
-        unitCost={unitCost} setUnitCost={setUnitCost}
-        sellingPrice={sellingPrice} setSellingPrice={setSellingPrice}
+        productName={productName}
+        setProductName={setProductName}
+        genericName={genericName}
+        setGenericName={setGenericName}
+        strengthValue={strengthValue}
+        setStrengthValue={setStrengthValue}
+        strengthUnit={strengthUnit}
+        setStrengthUnit={setStrengthUnit}
+        category={category}
+        setCategory={setCategory}
+        form={form}
+        setForm={setForm}
+        baseUnit={baseUnit}
+        setBaseUnit={setBaseUnit}
+        packageUnit={packageUnit}
+        setPackageUnit={setPackageUnit}
+        conversionFactor={conversionFactor}
+        setConversionFactor={setConversionFactor}
+        batchNumber={batchNumber}
+        setBatchNumber={setBatchNumber}
+        expiryDate={expiryDate}
+        setExpiryDate={setExpiryDate}
+        inventoryLocation={inventoryLocation}
+        setInventoryLocation={setInventoryLocation}
+        quantityPackages={quantityPackages}
+        setQuantityPackages={setQuantityPackages}
+        unitCost={unitCost}
+        setUnitCost={setUnitCost}
+        sellingPrice={sellingPrice}
+        setSellingPrice={setSellingPrice}
         totalBaseUnits={totalBaseUnits}
         productCatalog={productCatalog}
         onSubmit={handleAddBatch}
         onClear={resetBatch}
-        onAddNew={() => { setPendingBatch(buildPendingBatch()); setShowDrawer(true); }}
+        onAddNew={() => {
+          setPendingBatch(buildPendingBatch());
+          setShowDrawer(true);
+        }}
         errorMessage={errorMessage}
       />
 
       <DraftList
         batches={draftBatches}
-        onRemove={(bn) => setDraftBatches((prev) => prev.filter((b) => b.batchNumber !== bn))}
+        onRemove={(bn) =>
+          setDraftBatches((prev) => prev.filter((b) => b.batchNumber !== bn))
+        }
       />
 
       <SummaryPanel
@@ -264,7 +349,11 @@ export function StockIn() {
         errorMessage={errorMessage}
         saveMessage={saveMessage}
         isPending={stockInwardMutation.isPending}
-        onClearDraft={() => { setDraftBatches([]); setErrorMessage(""); setSaveMessage(""); }}
+        onClearDraft={() => {
+          setDraftBatches([]);
+          setErrorMessage("");
+          setSaveMessage("");
+        }}
         onSave={handleSaveInward}
       />
     </div>
