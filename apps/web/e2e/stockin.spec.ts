@@ -77,17 +77,29 @@ test("stock in saves a drafted batch through the backend", async ({ page }) => {
   });
 
   await addDraftBatch(page);
+  await expect(page.getByText("1 batch", { exact: true })).toBeVisible();
 
-  const saveResponsePromise = page.waitForResponse((response) => {
-    return response.request().method() === "POST" && new URL(response.url()).pathname.endsWith("/inventory/stock-inward");
-  });
-  await page.getByRole("button", { name: "Save stock inward" }).nth(1).click();
-  const saveResponse = await saveResponsePromise;
+  const saveButton = page.getByRole("button", { name: "Save stock inward" }).last();
+  await expect(saveButton).toBeVisible();
+  await expect(saveButton).toBeEnabled();
+
+  const [saveResponse] = await Promise.all([
+    page.waitForResponse((response) => {
+      return (
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname.endsWith("/inventory/stock-inward")
+      );
+    }),
+    saveButton.click(),
+  ]);
+
   expect(saveResponse.ok()).toBeTruthy();
 
   await expect(page.getByText(/Saved 1 batch\(es\) from MediCore Pharma/i)).toBeVisible();
-  await expect(page.getByText("0 batches drafted")).toBeVisible();
+  await expect(page.getByText("1 batch", { exact: true })).not.toBeVisible();
+  await expect(page.locator("tbody").getByText("Biogesic", { exact: true })).not.toBeVisible();
 });
+
 
 test("stock in requires header and required fields", async ({ page }) => {
   await gotoStockIn(page);

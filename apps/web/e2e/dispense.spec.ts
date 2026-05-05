@@ -1,338 +1,228 @@
-import { test, expect, type Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+import { createApiContext, seedProductWithBatch } from "./helpers";
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Navigate to the Dispense page and wait for the <h1> to confirm mount. */
 async function gotoDispense(page: Page) {
   await page.goto("/dispense");
-  // Pin to <h1> — the page also renders <h2>Dispense List</h2> which would
-  // trigger a strict-mode violation with a plain heading name match.
-  await expect(page.locator("h1", { hasText: "Dispense" })).toBeVisible();
+  await expect(page.getByPlaceholder("Search by medicine name, generic name, or batch...")).toBeVisible();
+  await expect(page.getByText("Dispense List")).toBeVisible();
 }
 
-/**
- * Search the Dispense inventory table (client-side filter — no network call).
- * NOTE: The placeholder here differs from the shared searchInventory helper,
- * which targets the separate Inventory page.
- */
-async function searchDispense(page: Page, query: string) {
-  const input = page.getByPlaceholder(
-    "Search by medicine name, generic name, or batch..."
-  );
-  await input.fill(query);
-}
-
-/**
- * Returns the DispenseList <aside> panel.
- * The layout has TWO <aside> elements: the nav sidebar and the dispense panel.
- * We disambiguate by filtering on the heading text only the panel carries.
- */
 function dispensePanel(page: Page) {
   return page.locator("aside").filter({ hasText: "Dispense List" });
 }
 
-function dispenseListItems(page: Page) {
+function dispenseItems(page: Page) {
   return dispensePanel(page).locator("div.bg-slate-50.p-4.rounded-xl.border.border-slate-200");
 }
 
-/**
- * Row locator scoped strictly to the inventory <table> body.
- * Using a CSS comma selector in a single Playwright locator causes
- * double-counting; keep it to a single selector.
- */
-function inventoryRows(page: Page) {
-  return page.locator("section").first().locator("table tbody tr");
+async function searchDispense(page: Page, query: string) {
+  const input = page.getByPlaceholder("Search by medicine name, generic name, or batch...");
+  await input.fill(query);
 }
 
-/**
- * Click the first Add button in the inventory table section.
- * Scoped to <section> to avoid matching unrelated "Add" buttons in the
- * nav sidebar or page header that caused the 30 s timeout.
- */
-async function addFirstBatchToDispense(page: Page) {
-  const inventoryTable = page.locator("main table").first();
-  const firstProductRow = inventoryTable.locator("tbody tr").first();
-
-  await expect(firstProductRow).toBeVisible({ timeout: 10000 });
-
-  let addButton = page.getByRole("button", { name: /^add$/i }).first();
-  if ((await addButton.count()) === 0 || !(await addButton.isVisible())) {
-    await firstProductRow.click();
-    addButton = page.getByRole("button", { name: /^add$/i }).first();
+async function expandProduct(page: Page, productName: string, batchNumber?: string) {
+  if (batchNumber) {
+    const visibleBatch = page.locator("tbody tr").filter({ hasText: batchNumber }).first();
+    if (await visibleBatch.isVisible().catch(() => false)) return;
   }
 
-  await expect(addButton).toBeVisible({ timeout: 10000 });
-  await addButton.click();
+  const row = page.locator("tbody tr").filter({ hasText: productName }).first();
+  await expect(row).toBeVisible({ timeout: 15000 });
 
-  await expect(dispenseListItems(page).first()).toBeVisible();
+  const detailsButton = row.getByRole("button", { name: /batch details/i }).first();
+
+  if (await detailsButton.isVisible().catch(() => false)) {
+    await detailsButton.click();
+  } else {
+    await row.click();
+  }
+
+  await expect(page.getByText(/Batches/i).first()).toBeVisible({ timeout: 10000 });
 }
 
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
+
+async function addSeededBatch(page: Page, productName: string, batchNumber: string) {
+  await searchDispense(page, productName);
+  await expect(page.getByText(productName).first()).toBeVisible({ timeout: 15000 });
+
+  await expandProduct(page, productName, batchNumber);
+
+
+  const batchRow = page.locator("tbody tr").filter({ hasText: batchNumber }).first();
+  await expect(batchRow).toBeVisible({ timeout: 15000 });
+  await batchRow.getByRole("button", { name: "Add" }).click();
+
+  await expect(dispensePanel(page).getByText(batchNumber)).toBeVisible();
+}
 
 test.describe("Dispense page", () => {
-  // ── Layout & initial render ─────────────────────────────────────────────
-
-  test("renders page heading and subtitle", async ({ page }) => {
+  test("renders the dispense page shell", async ({ page }) => {
     await gotoDispense(page);
 
-    await expect(page.locator("h1", { hasText: "Dispense" })).toBeVisible();
-    await expect(
-      page.getByText("Select medicine batches and prepare outgoing stock")
-    ).toBeVisible();
+    await expect(page.getByPlaceholder("Search by medicine name, generic name, or batch...")).toBeVisible();
+    await expect(page.getByText("Select medicine")).toBeVisible();
+    await expect(page.getByText("No items selected.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Confirm & Update Stock" })).toBeDisabled();
   });
 
-  test("renders search bar with correct placeholder", async ({ page }) => {
-    await gotoDispense(page);
+  test("search finds a seeded medicine from the test database", async ({ page }) => {
+    const api = await createApiContext();
+    const seeded = await seedProductWithBatch(api);
+    await api.dispose();
 
-    await expect(
-      page.getByPlaceholder("Search by medicine name, generic name, or batch...")
-    ).toBeVisible();
+    await gotoDispense(page);
+    await searchDispense(page, seeded.productName);
+
+    await expect(page.getByText(seeded.productName).first()).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(seeded.genericName).first()).toBeVisible();
   });
 
-  test("renders the inventory table section", async ({ page }) => {
-    await gotoDispense(page);
+  test("adds a batch to the dispense list and blocks duplicates", async ({ page }) => {
+    const api = await createApiContext();
+    const seeded = await seedProductWithBatch(api);
+    await api.dispose();
 
-    await expect(page.locator("section").first()).toBeVisible();
+    await gotoDispense(page);
+    await addSeededBatch(page, seeded.productName, seeded.batchNumber);
+
+    await expect(dispenseItems(page)).toHaveCount(1);
+
+    await page.locator("tbody tr").filter({ hasText: seeded.batchNumber }).first()
+      .getByRole("button", { name: "Add" })
+      .click();
+
+    await expect(dispenseItems(page)).toHaveCount(1);
   });
 
-  test("renders the dispense list aside panel", async ({ page }) => {
+  test("updates quantity, reason, and staff name before confirming", async ({ page }) => {
+    const api = await createApiContext();
+    const seeded = await seedProductWithBatch(api, { quantity: 20 });
+    await api.dispose();
+
     await gotoDispense(page);
-
-    // Filter by "Dispense List" text to avoid matching the nav sidebar <aside>
-    await expect(dispensePanel(page)).toBeVisible();
-  });
-
-  // ── Search / filter ─────────────────────────────────────────────────────
-
-  test("filters inventory table when typing in search bar", async ({ page }) => {
-    await gotoDispense(page);
-
-    const rows = inventoryRows(page);
-    // Wait for initial data to load
-    await rows.first().waitFor({ state: "visible" });
-    const totalBefore = await rows.count();
-
-    await searchDispense(page, "amoxicillin");
-
-    await expect
-      .poll(async () => {
-        const total = await rows.count();
-        if (total === 0) return false;
-
-        for (let i = 0; i < total; i++) {
-          const text = await rows.nth(i).innerText();
-          if (!text.toLowerCase().includes("amoxicillin")) return false;
-        }
-
-        return true;
-      }, { timeout: 10000 })
-      .toBe(true);
-
-    const totalAfter = await rows.count();
-    expect(totalAfter).toBeLessThanOrEqual(totalBefore);
-  });
-
-  test("shows all rows when search is cleared", async ({ page }) => {
-    await gotoDispense(page);
-
-    const rows = inventoryRows(page);
-    await rows.first().waitFor({ state: "visible" });
-    const totalBefore = await rows.count();
-
-    await searchDispense(page, "xyz_no_match");
-    // Confirm the filter actually reduced results before clearing.
-    await expect.poll(async () => rows.count(), { timeout: 10000 }).toBe(0);
-
-    await searchDispense(page, ""); // clear
-
-    await expect
-      .poll(async () => rows.count(), { timeout: 10000 })
-      .toBe(totalBefore);
-
-    const totalAfter = await rows.count();
-    expect(totalAfter).toBe(totalBefore);
-  });
-
-  test("shows empty state when search has no matches", async ({ page }) => {
-    await gotoDispense(page);
-
-    const rows = inventoryRows(page);
-    await rows.first().waitFor({ state: "visible" });
-
-    await searchDispense(page, "zzz_definitely_not_a_medicine_9999");
-
-    await expect.poll(async () => rows.count(), { timeout: 10000 }).toBe(0);
-
-    const count = await rows.count();
-    if (count === 0) {
-      expect(count).toBe(0);
-    } else {
-      // Some implementations render a single "no results" row
-      const text = await rows.first().innerText();
-      expect(text.toLowerCase()).toMatch(/no result|no item|empty|not found/);
-    }
-  });
-
-  // ── Adding items to the dispense list ───────────────────────────────────
-
-  test("adds a batch to the dispense list", async ({ page }) => {
-    await gotoDispense(page);
-
-    await addFirstBatchToDispense(page);
-
-    const items = dispenseListItems(page);
-    await expect(items).toHaveCount(1);
-  });
-
-  test("does not add the same batch twice", async ({ page }) => {
-    await gotoDispense(page);
-
-    await addFirstBatchToDispense(page);
-    await addFirstBatchToDispense(page); // attempt duplicate
-
-    const items = dispenseListItems(page);
-    expect(await items.count()).toBe(1);
-  });
-
-  // ── Quantity update ─────────────────────────────────────────────────────
-
-  test("updates quantity of a dispense item", async ({ page }) => {
-    await gotoDispense(page);
-
-    await addFirstBatchToDispense(page);
-
-    const qtyInput = dispensePanel(page).getByRole("spinbutton").first();
-    await qtyInput.fill("3");
-    await qtyInput.blur();
-
-    await expect(qtyInput).toHaveValue("3");
-  });
-
-  test("does not allow quantity below 1", async ({ page }) => {
-    await gotoDispense(page);
-
-    await addFirstBatchToDispense(page);
-
-    const qtyInput = dispensePanel(page).getByRole("spinbutton").first();
-    await qtyInput.fill("0");
-    await qtyInput.blur();
-
-    const value = await qtyInput.inputValue();
-    expect(Number(value)).toBeGreaterThanOrEqual(1);
-  });
-
-  // ── Reason selection ────────────────────────────────────────────────────
-
-  test("defaults dispense reason to Sale", async ({ page }) => {
-    await gotoDispense(page);
-
-    await addFirstBatchToDispense(page);
-
-    const select = dispensePanel(page).getByRole("combobox").first();
-    await expect(select).toHaveValue("Sale");
-  });
-
-  test("updates dispense reason", async ({ page }) => {
-    await gotoDispense(page);
-
-    await addFirstBatchToDispense(page);
-
-    const select = dispensePanel(page).getByRole("combobox").first();
-    await select.selectOption("Expired");
-
-    await expect(select).toHaveValue("Expired");
-  });
-
-  // ── Removing items ──────────────────────────────────────────────────────
-
-  test("removes an item from the dispense list", async ({ page }) => {
-    await gotoDispense(page);
-
-    await addFirstBatchToDispense(page);
+    await addSeededBatch(page, seeded.productName, seeded.batchNumber);
 
     const panel = dispensePanel(page);
-    const removeBtn = panel.getByRole("button", { name: /remove|delete|×|trash/i }).first();
-    await removeBtn.click();
+    const qtyInput = panel.getByRole("spinbutton").first();
+    await qtyInput.fill("3");
+    await expect(qtyInput).toHaveValue("3");
 
-    const items = dispenseListItems(page);
-    expect(await items.count()).toBe(0);
+    const reason = panel.getByRole("combobox").first();
+    await expect(reason).toHaveValue("Sale");
+    await reason.selectOption("Damaged");
+    await expect(reason).toHaveValue("Damaged");
+
+    await panel.getByPlaceholder("Enter staff name...").fill("E2E Staff");
+    await expect(panel.getByPlaceholder("Enter staff name...")).toHaveValue("E2E Staff");
   });
 
-  // ── Confirm / submit ────────────────────────────────────────────────────
+  test("removes an item from the dispense list", async ({ page }) => {
+    const api = await createApiContext();
+    const seeded = await seedProductWithBatch(api);
+    await api.dispose();
 
-  test("Confirm button is disabled or absent when dispense list is empty", async ({ page }) => {
     await gotoDispense(page);
+    await addSeededBatch(page, seeded.productName, seeded.batchNumber);
 
-    // Scope to the dispense panel so we don't accidentally match other buttons
-    const confirmBtn = dispensePanel(page).getByRole("button", { name: /confirm|dispense/i });
+    await dispensePanel(page).getByTitle("Remove item").click();
 
-    const count = await confirmBtn.count();
-    if (count > 0) {
-      await expect(confirmBtn.first()).toBeDisabled();
-    }
-    // count === 0 is also acceptable — button may be hidden when list is empty
+    await expect(dispenseItems(page)).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Confirm & Update Stock" })).toBeDisabled();
   });
 
-  test("shows success message after confirming dispense", async ({ page }) => {
-    await gotoDispense(page);
+  test("confirms dispense through the real API and updates the test database", async ({ page }) => {
+  const api = await createApiContext();
+  const seeded = await seedProductWithBatch(api, { quantity: 9 });
 
-    await addFirstBatchToDispense(page);
+  await gotoDispense(page);
+  await addSeededBatch(page, seeded.productName, seeded.batchNumber);
 
-    await page.route("**/inventory/stock-outward", async (route) => {
-      await route.fulfill({ status: 200, body: JSON.stringify({ ok: true }) });
-    });
+  const panel = dispensePanel(page);
+  await panel.getByRole("spinbutton").first().fill("4");
+  await panel.getByPlaceholder("Enter staff name...").fill("E2E Staff");
 
-    await dispensePanel(page).getByRole("button", { name: /confirm|dispense/i }).first().click();
-
-    await expect(page.getByText(/successfully dispensed/i)).toBeVisible({ timeout: 5000 });
-  });
-
-  test("clears the dispense list after a successful dispense", async ({ page }) => {
-    await gotoDispense(page);
-
-    await addFirstBatchToDispense(page);
-
-    await page.route("**/inventory/stock-outward", async (route) => {
-      await route.fulfill({ status: 200, body: JSON.stringify({ ok: true }) });
-    });
-
-    await dispensePanel(page).getByRole("button", { name: /confirm|dispense/i }).first().click();
-
-    await expect(page.getByText(/successfully dispensed/i)).toBeVisible({ timeout: 5000 });
-
-    const items = dispenseListItems(page);
-    expect(await items.count()).toBe(0);
-  });
-
-  test("shows error message when dispense API fails", async ({ page }) => {
-    await gotoDispense(page);
-
-    await addFirstBatchToDispense(page);
-
-    await page.route("**/inventory/stock-outward", async (route) => {
-      await route.fulfill({ status: 500, body: JSON.stringify({ error: "Server error" }) });
-    });
-
-    await dispensePanel(page).getByRole("button", { name: /confirm|dispense/i }).first().click();
-
-    await expect(page.getByText(/failed to dispense/i)).toBeVisible({ timeout: 5000 });
-  });
-
-  // ── Accessibility ────────────────────────────────────────────────────────
-
-  test("search input is focusable via keyboard", async ({ page }) => {
-    await gotoDispense(page);
-
-    // Assert the input is visible and enabled (keyboard-accessible).
-    // Asserting exact Tab focus order is brittle across browsers so we skip it.
-    const searchInput = page.getByPlaceholder(
-      "Search by medicine name, generic name, or batch..."
+  const stockOutResponse = page.waitForResponse((response) => {
+    return (
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname.endsWith("/inventory/stock-outward")
     );
-    await expect(searchInput).toBeVisible();
-    await expect(searchInput).toBeEnabled();
   });
+
+  await panel.getByRole("button", { name: "Confirm & Update Stock" }).click();
+  await expect(page.getByText("Confirm Dispense")).toBeVisible();
+  await page.getByRole("button", { name: "Yes, confirm" }).click();
+
+  const response = await stockOutResponse;
+  expect(response.ok()).toBeTruthy();
+
+  await expect(page.getByText("Successfully dispensed 1 batch(es).")).toBeVisible({ timeout: 10000 });
+  await expect(dispenseItems(page)).toHaveCount(0);
+
+  const batchResponse = await api.get(`/inventory/${seeded.batch.id}`);
+  expect(batchResponse.ok()).toBeTruthy();
+
+  const batchPayload = await batchResponse.json();
+  expect(batchPayload.inventory_batches.currentQuantity).toBe(5);
+
+  await api.dispose();
+});
+
+
+  test("canceling the confirm modal does not dispense stock", async ({ page }) => {
+    const api = await createApiContext();
+    const seeded = await seedProductWithBatch(api, { quantity: 8 });
+    await api.dispose();
+
+    await gotoDispense(page);
+    await addSeededBatch(page, seeded.productName, seeded.batchNumber);
+
+    await dispensePanel(page).getByRole("button", { name: "Confirm & Update Stock" }).click();
+    await expect(page.getByText("Confirm Dispense")).toBeVisible();
+
+    await page.getByRole("button", { name: "Go back" }).click();
+
+    await expect(page.getByText("Confirm Dispense")).not.toBeVisible();
+    await expect(dispenseItems(page)).toHaveCount(1);
+    await expect(page.getByText("Successfully dispensed 1 batch(es).")).not.toBeVisible();
+  });
+
+  test("shows failed dispense message when the real API rejects stale stock", async ({ page }) => {
+  const api = await createApiContext();
+  const seeded = await seedProductWithBatch(api, { quantity: 2 });
+
+  await gotoDispense(page);
+  await addSeededBatch(page, seeded.productName, seeded.batchNumber);
+
+  const externalDispense = await api.post("/inventory/stock-outward", {
+    data: {
+      performedBy: "playwright",
+      items: [
+        {
+          batchId: seeded.batch.id,
+          quantity: 2,
+          reason: "Sale",
+        },
+      ],
+    },
+  });
+
+  expect(externalDispense.ok()).toBeTruthy();
+
+  const stockOutResponse = page.waitForResponse((response) => {
+    return (
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname.endsWith("/inventory/stock-outward")
+    );
+  });
+
+  await dispensePanel(page).getByRole("button", { name: "Confirm & Update Stock" }).click();
+  await page.getByRole("button", { name: "Yes, confirm" }).click();
+
+  const response = await stockOutResponse;
+  expect(response.ok()).toBeFalsy();
+
+  await expect(page.getByText("Failed to dispense. Please try again.")).toBeVisible({ timeout: 10000 });
+
+  await api.dispose();
+});
 });

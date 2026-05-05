@@ -33,14 +33,14 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({
         notification.type,
       )} text-white rounded-lg shadow-lg p-3 flex gap-2 items-start animate-in slide-in-from-right`}
     >
-      <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-      <div className="flex-grow min-w-0">
+      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+      <div className="grow min-w-0">
         <p className="font-medium text-sm">{notification.title}</p>
         <p className="text-xs opacity-90">{notification.message}</p>
       </div>
       <button
         onClick={onClose}
-        className="flex-shrink-0 text-white hover:opacity-75 transition-opacity"
+        className="shrink-0 text-white hover:opacity-75 transition-opacity"
       >
         <X className="w-3 h-3" />
       </button>

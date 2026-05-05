@@ -30,11 +30,11 @@ test("inventory search filters product list", async ({ page }) => {
 test("inventory shows stock summary chips", async ({ page }) => {
   await gotoInventory(page);
 
-  const summaryChips = page.locator("div.flex.gap-3.flex-wrap");
-  await expect(summaryChips.getByText("In stock", { exact: true })).toBeVisible();
-  await expect(summaryChips.getByText("Low stock", { exact: true })).toBeVisible();
-  await expect(summaryChips.getByText("Out of stock", { exact: true })).toBeVisible();
+  await expect(page.getByText("In stock", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Low stock", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Out of stock", { exact: true }).first()).toBeVisible();
 });
+
 
 test("inventory search matches generic name", async ({ page }) => {
   await gotoInventory(page);

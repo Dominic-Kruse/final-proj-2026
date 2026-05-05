@@ -72,9 +72,9 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
         <div className="absolute top-2 right-2 w-2 h-2 bg-blue-500 rounded-full"></div>
       )}
       <AlertCircle
-        className={`w-5 h-5 flex-shrink-0 mt-0.5 ${getIconColor(notification.type)}`}
+        className={`w-5 h-5 shrink-0 mt-0.5 ${getIconColor(notification.type)}`}
       />
-      <div className="flex-grow min-w-0">
+      <div className="grow min-w-0">
         <h4 className={`font-semibold ${getTextColor(notification.type)}`}>
           {notification.title}
         </h4>
@@ -94,7 +94,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
           e.stopPropagation();
           onClose();
         }}
-        className={`flex-shrink-0 mt-0.5 ${getTextColor(
+        className={`shrink-0 mt-0.5 ${getTextColor(
           notification.type,
         )} hover:opacity-70 transition-opacity`}
       >
