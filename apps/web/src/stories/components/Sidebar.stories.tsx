@@ -61,8 +61,6 @@ export const Collapsed: Story = {
     onToggleCollapse: fn(),
   },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-
     // Nav labels are aria-hidden when collapsed — text is in DOM but hidden
     // The Sidebar should be narrower (w-20 vs w-64)
     const Sidebar = canvasElement.querySelector("aside");
