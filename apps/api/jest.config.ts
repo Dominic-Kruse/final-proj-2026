@@ -4,11 +4,13 @@ const config: Config = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   verbose: true,
-  forceExit: true,
+  testTimeout: 15000,
   clearMocks: true,
-  resetModules: true,
-  globalTeardown: "./src/utils/__tests__/teardown.ts",
-  testPathIgnorePatterns: ["/node_modules/", "teardown.ts"], // ← add this
+  roots: ["<rootDir>/src"],
+  testMatch: ["**/__tests__/**/*.test.ts"],
+  globalSetup: "./src/__tests__/setup.ts",
+  globalTeardown: "./src/__tests__/teardown.ts",
+  testPathIgnorePatterns: ["/node_modules/", "/dist/", "teardown.ts"],
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/src/$1",
   },
