@@ -225,4 +225,49 @@ test.describe("Dispense page", () => {
 
   await api.dispose();
 });
+
+test("dispense writes a stock outward audit log", async ({ page }) => {
+  const api = await createApiContext();
+  const seeded = await seedProductWithBatch(api, { quantity: 9 });
+
+  await gotoDispense(page);
+  await addSeededBatch(page, seeded.productName, seeded.batchNumber);
+
+  const panel = dispensePanel(page);
+  await panel.getByRole("spinbutton").first().fill("4");
+  await panel.getByPlaceholder("Enter staff name...").fill("Audit E2E Staff");
+
+  const stockOutResponse = page.waitForResponse((response) => {
+    return (
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname.endsWith("/inventory/stock-outward")
+    );
+  });
+
+  await panel.getByRole("button", { name: "Confirm & Update Stock" }).click();
+  await expect(page.getByText("Confirm Dispense")).toBeVisible();
+  await page.getByRole("button", { name: "Yes, confirm" }).click();
+
+  const response = await stockOutResponse;
+  expect(response.ok()).toBeTruthy();
+
+  await expect(page.getByText("Successfully dispensed 1 batch(es).")).toBeVisible({
+    timeout: 10000,
+  });
+
+  await page.goto("/customer");
+
+  await expect(page.getByText("stock_outward").first()).toBeVisible({ timeout: 15000 });
+  await expect(page.getByText(seeded.productName).first()).toBeVisible();
+  await expect(page.getByText("Audit E2E Staff").first()).toBeVisible();
+
+  const row = page.locator("tbody tr").filter({ hasText: "stock_outward" }).first();
+  await expect(row).toContainText("inventory_batch");
+  await expect(row.getByRole("button", { name: "Undo" })).toBeVisible();
+
+  await api.dispose();
 });
+
+});
+
+

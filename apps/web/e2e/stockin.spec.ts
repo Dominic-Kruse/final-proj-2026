@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { createApiContext, seedProductWithBatch } from "./helpers";
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -31,6 +32,8 @@ async function selectGeneric(page: Page, query: string) {
     await input.press("Enter");
   }
 }
+
+
 
 async function fillMatchingBatch(page: Page, overrides?: Partial<Record<string, string>>) {
   await page.getByPlaceholder("e.g. Biogesic, Amoxil").fill(overrides?.productName ?? "Biogesic");
@@ -134,5 +137,81 @@ test("stock in requires batch fields before adding to draft", async ({ page }) =
   await addDraftBatch(page);
 
   await expect(page.locator("form").getByText("Please complete all required batch fields.").first()).toBeVisible();
+});
+
+
+test("stock in saves a batch, then appears in inventory and audit logs", async ({ page }) => {
+  const unique = Date.now();
+  const productName = "Biogesic";
+  const batchNumber = `STOCKIN-AUDIT-${unique}`;
+
+  await gotoStockIn(page);
+  await fillHeader(page, "Audit Supplier", `AUDIT-INV-${unique}`);
+  await fillMatchingBatch(page, {
+    productName,
+    genericName: "paracetamol",
+    strengthValue: "500",
+    batchNumber,
+    expiryDate: "2027-04-16",
+    inventoryLocation: "Audit Shelf",
+    quantityPackages: "3",
+    unitCost: "1.25",
+    sellingPrice: "2.50",
+  });
+
+  await addDraftBatch(page);
+  await expect(page.getByText("1 batch", { exact: true })).toBeVisible();
+
+  const saveButton = page.getByRole("button", { name: "Save stock inward" }).last();
+  await expect(saveButton).toBeEnabled();
+
+  const [response] = await Promise.all([
+    page.waitForResponse((response) => {
+      return (
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname.endsWith("/inventory/stock-inward")
+      );
+    }),
+    saveButton.click(),
+  ]);
+
+  expect(response.ok()).toBeTruthy();
+
+  await expect(
+    page.getByText(/Saved 1 batch\(es\) from Audit Supplier/i),
+  ).toBeVisible();
+
+  await page.goto("/inventory");
+  await expect(page.locator("h1", { hasText: "Inventory" })).toBeVisible();
+
+  await page
+    .getByPlaceholder("Search by medicine name or generic name...")
+    .fill(productName);
+
+  await expect(page.getByRole("cell", { name: productName })).toBeVisible({
+    timeout: 15000,
+  });
+
+  const inventoryRow = page
+    .locator("tbody tr")
+    .filter({ hasText: productName })
+    .first();
+
+  await inventoryRow.getByRole("button", { name: /batch details/i }).click();
+
+  await expect(page.getByText(batchNumber)).toBeVisible();
+  
+
+    await page.goto("/customer");
+
+  const auditRow = page
+    .locator("tbody tr")
+    .filter({ hasText: "stock_inward" })
+    .filter({ hasText: "inventory_batch" })
+    .first();
+
+  await expect(auditRow).toBeVisible({ timeout: 15000 });
+  await expect(auditRow).toContainText("stock_inward");
+  await expect(auditRow).toContainText("inventory_batch");
 });
 
